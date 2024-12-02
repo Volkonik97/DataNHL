@@ -130,7 +130,6 @@ def select_all_nhl_matches_and_extract_data():
         chrome_options.add_argument('--headless=new')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.binary_location = "/usr/bin/google-chrome"  # Emplacement de Chrome dans l'environnement Linux
         
         # Options supplémentaires pour la stabilité
         chrome_options.add_argument('--disable-gpu')
@@ -141,9 +140,25 @@ def select_all_nhl_matches_and_extract_data():
         chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument('--log-level=3')
         
-        # Installation et configuration du service Chrome pour Linux
-        service = Service('/usr/local/bin/chromedriver')  # Emplacement standard de chromedriver dans Linux
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        # Debugging information
+        st.write("Tentative de démarrage de Chrome...")
+        
+        try:
+            # Utiliser le service Chrome par défaut
+            driver = webdriver.Chrome(options=chrome_options)
+            st.write("Chrome démarré avec succès!")
+        except Exception as chrome_error:
+            st.error(f"Erreur lors du démarrage de Chrome: {str(chrome_error)}")
+            # Tentative alternative avec le service explicite
+            try:
+                st.write("Tentative avec le service explicite...")
+                service = webdriver.ChromeService()
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+                st.write("Chrome démarré avec succès via le service explicite!")
+            except Exception as service_error:
+                st.error(f"Erreur avec le service explicite: {str(service_error)}")
+                raise
+        
         driver.set_page_load_timeout(30)  # Set page load timeout to 30 seconds
         login_url = "https://maxicotes.fr/wp-login.php"
         driver.get(login_url)
