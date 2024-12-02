@@ -5,8 +5,6 @@ from bs4 import BeautifulSoup
 import pandas as pd
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import time
@@ -14,6 +12,7 @@ import re
 from data_processing import enlever_accents_avec_remplacement
 import streamlit as st
 from webdriver_manager.chrome import ChromeDriverManager
+import undetected_chromedriver as uc
 
 # Dictionnaire de correspondance des noms d'équipes
 TEAM_MAPPING = {
@@ -118,22 +117,17 @@ def select_all_nhl_matches_and_extract_data():
     username = st.secrets["credentials"]["username"]
     password = st.secrets["credentials"]["password"]
     
-    # Configuration de Chrome pour Streamlit Cloud
-    chrome_options = Options()
-    chrome_options.add_argument("--headless")
-    chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--no-sandbox")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--disable-notifications")
-    chrome_options.add_argument("--start-maximized")
-    chrome_options.add_argument("--window-size=1920,1080")
-
-    # Utiliser webdriver_manager pour gérer automatiquement ChromeDriver
-    service = Service(ChromeDriverManager().install())
-    driver = webdriver.Chrome(service=service, options=chrome_options)
-    data = []
-
+    # Configuration de Chrome pour Streamlit Cloud avec undetected-chromedriver
+    options = uc.ChromeOptions()
+    options.add_argument('--headless=new')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--window-size=1920,1080')
+    
     try:
+        driver = uc.Chrome(options=options)
+        driver.set_page_load_timeout(30)  # Set page load timeout to 30 seconds
         login_url = "https://maxicotes.fr/wp-login.php"
         driver.get(login_url)
 
