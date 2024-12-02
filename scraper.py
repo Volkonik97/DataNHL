@@ -118,48 +118,45 @@ def select_all_nhl_matches_and_extract_data():
     Sélectionne tous les matchs NHL et extrait les données
     """
     driver = None
+    data = []
     try:
         # Utiliser les identifiants depuis les secrets Streamlit
         username = st.secrets["credentials"]["username"]
         password = st.secrets["credentials"]["password"]
         
-        # Configuration de Chrome pour Streamlit Cloud
+        # Configuration de Chromium pour Streamlit Cloud
         chrome_options = Options()
         
-        # Options essentielles pour l'environnement cloud Linux
+        # Configuration pour le mode headless
         chrome_options.add_argument('--headless=new')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
-        
-        # Options supplémentaires pour la stabilité
         chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--disable-software-rasterizer')
-        chrome_options.add_argument('--remote-debugging-port=9222')
+        
+        # Configuration spécifique pour Chromium
+        chrome_options.binary_location = "/usr/bin/chromium-browser"
+        
+        # Options supplémentaires
+        chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-infobars')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--log-level=3')
+        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         
-        # Debugging information
-        st.write("Tentative de démarrage de Chrome...")
+        # User agent
+        chrome_options.add_argument('--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
         
-        try:
-            # Utiliser le service Chrome par défaut
-            driver = webdriver.Chrome(options=chrome_options)
-            st.write("Chrome démarré avec succès!")
-        except Exception as chrome_error:
-            st.error(f"Erreur lors du démarrage de Chrome: {str(chrome_error)}")
-            # Tentative alternative avec le service explicite
-            try:
-                st.write("Tentative avec le service explicite...")
-                service = webdriver.ChromeService()
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-                st.write("Chrome démarré avec succès via le service explicite!")
-            except Exception as service_error:
-                st.error(f"Erreur avec le service explicite: {str(service_error)}")
-                raise
+        st.write("Configuration du navigateur Chromium en mode headless...")
         
-        driver.set_page_load_timeout(30)  # Set page load timeout to 30 seconds
+        # Utilisation du ChromeDriver installé via packages.txt
+        service = Service('/usr/bin/chromedriver')
+        driver = webdriver.Chrome(service=service, options=chrome_options)
+        
+        st.write("Navigateur Chromium démarré avec succès!")
+        driver.set_page_load_timeout(30)
+        
+        # Vérification du mode headless
+        st.write(f"Mode headless actif: {driver.execute_script('return navigator.webdriver')}")
+        
         login_url = "https://maxicotes.fr/wp-login.php"
         driver.get(login_url)
 
@@ -249,16 +246,24 @@ def select_all_nhl_matches_and_extract_data():
         if driver is not None:
             try:
                 driver.quit()
+                st.write("Navigateur fermé avec succès")
             except Exception:
-                pass  # Ignorer les erreurs lors de la fermeture du driver
+                st.warning("Erreur lors de la fermeture du navigateur")
 
+    # Si aucune donnée n'a été récupérée
+    if not data:
+        st.warning("Aucune cote n'a été trouvée pour les joueurs.")
+        return pd.DataFrame()
+
+    # Création du DataFrame avec les données récupérées
     df = pd.DataFrame(data, columns=["Player", "Team", "Cote"])
     df[['Prénom', 'Nom']] = df['Player'].str.extract(r'([^\s]+)\s*(.*)', expand=True)
-    df['Prénom'].fillna('Non disponible', inplace=True)
-    df['Nom'].fillna('Non disponible', inplace=True)
-    df.drop(columns=['Player'], inplace=True)
-    df['Nom'] = df['Nom'].apply(enlever_accents_avec_remplacement)
-    df = df[['Prénom', 'Nom', 'Team', 'Cote']]
+    
+    # Nettoyage des données
+    df['Prénom'] = df['Prénom'].fillna('Non disponible')
+    df['Nom'] = df['Nom'].fillna('Non disponible')
+    
+    st.success(f"Scraping terminé avec succès! {len(df)} joueurs trouvés.")
     return df
 
 
