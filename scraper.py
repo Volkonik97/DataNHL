@@ -133,8 +133,8 @@ def select_all_nhl_matches_and_extract_data():
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
         
-        # Configuration spécifique pour Chromium
-        chrome_options.binary_location = "/usr/bin/chromium-browser"
+        # Configuration spécifique pour Chromium sur Debian
+        chrome_options.binary_location = "/usr/bin/chromium"
         
         # Options supplémentaires
         chrome_options.add_argument('--window-size=1920,1080')
