@@ -55,6 +55,7 @@ TEAM_MAPPING = {
 # Dictionnaire des variations de prénoms
 PRENOM_VARIATIONS = {
     'Alex': ['Alexander', 'Alexandre'],
+    'Artemi': ['Artemy'],
     'Chris': ['Christopher'],
     'Matt': ['Matthew'],
     'Mike': ['Michael'],
