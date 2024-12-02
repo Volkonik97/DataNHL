@@ -13,6 +13,7 @@ import time
 import re
 from data_processing import enlever_accents_avec_remplacement
 import streamlit as st
+from webdriver_manager.chrome import ChromeDriverManager
 
 # Dictionnaire de correspondance des noms d'équipes
 TEAM_MAPPING = {
@@ -117,12 +118,19 @@ def select_all_nhl_matches_and_extract_data():
     username = st.secrets["credentials"]["username"]
     password = st.secrets["credentials"]["password"]
     
-    webdriver_path = "C:/Program Files (x86)/ChromeDriver/chromedriver.exe"
+    # Configuration de Chrome pour Streamlit Cloud
     chrome_options = Options()
-    chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--disable-notifications")
+    chrome_options.add_argument("--start-maximized")
+    chrome_options.add_argument("--window-size=1920,1080")
 
-    driver = webdriver.Chrome(service=Service(webdriver_path), options=chrome_options)
+    # Utiliser webdriver_manager pour gérer automatiquement ChromeDriver
+    service = Service(ChromeDriverManager().install())
+    driver = webdriver.Chrome(service=service, options=chrome_options)
     data = []
 
     try:
