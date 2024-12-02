@@ -126,10 +126,11 @@ def select_all_nhl_matches_and_extract_data():
         # Configuration de Chrome pour Streamlit Cloud
         chrome_options = Options()
         
-        # Options essentielles pour l'environnement cloud
-        chrome_options.add_argument('--headless=new')  # Nouvelle syntaxe pour le mode headless
+        # Options essentielles pour l'environnement cloud Linux
+        chrome_options.add_argument('--headless=new')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.binary_location = "/usr/bin/google-chrome"  # Emplacement de Chrome dans l'environnement Linux
         
         # Options supplémentaires pour la stabilité
         chrome_options.add_argument('--disable-gpu')
@@ -140,8 +141,8 @@ def select_all_nhl_matches_and_extract_data():
         chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument('--log-level=3')
         
-        # Installation et configuration du service Chrome
-        service = Service(ChromeDriverManager().install())
+        # Installation et configuration du service Chrome pour Linux
+        service = Service('/usr/local/bin/chromedriver')  # Emplacement standard de chromedriver dans Linux
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.set_page_load_timeout(30)  # Set page load timeout to 30 seconds
         login_url = "https://maxicotes.fr/wp-login.php"
