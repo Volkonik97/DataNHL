@@ -127,7 +127,7 @@ def select_all_nhl_matches_and_extract_data():
         chrome_options = Options()
         
         # Options essentielles pour l'environnement cloud
-        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--headless=new')  # Nouvelle syntaxe pour le mode headless
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         
@@ -141,7 +141,7 @@ def select_all_nhl_matches_and_extract_data():
         chrome_options.add_argument('--log-level=3')
         
         # Installation et configuration du service Chrome
-        service = Service(ChromeDriverManager(version="114.0.5735.90").install())
+        service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
         driver.set_page_load_timeout(30)  # Set page load timeout to 30 seconds
         login_url = "https://maxicotes.fr/wp-login.php"
