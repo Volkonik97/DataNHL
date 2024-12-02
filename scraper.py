@@ -17,38 +17,39 @@ import streamlit as st
 
 # Dictionnaire de correspondance des noms d'équipes
 TEAM_MAPPING = {
+    'Anaheim Ducks': 'ANA',
+    'Arizona Coyotes': 'ARI',
     'Boston Bruins': 'BOS',
     'Buffalo Sabres': 'BUF',
-    'Detroit Red Wings': 'DET',
-    'Florida Panthers': 'FLA',
-    'Montreal Canadiens': 'MTL',
-    'Ottawa Senators': 'OTT',
-    'Tampa Bay Lightning': 'TBL',
-    'Toronto Maple Leafs': 'TOR',
+    'Calgary Flames': 'CGY',
     'Carolina Hurricanes': 'CAR',
+    'Chicago Blackhawks': 'CHI',
+    'Colorado Avalanche': 'COL',
     'Columbus Blue Jackets': 'CBJ',
+    'Dallas Stars': 'DAL',
+    'Detroit Red Wings': 'DET',
+    'Edmonton Oilers': 'EDM',
+    'Florida Panthers': 'FLA',
+    'Los Angeles Kings': 'LAK',
+    'Minnesota Wild': 'MIN',
+    'Montreal Canadiens': 'MTL',
+    'Nashville Predators': 'NSH',
     'New Jersey Devils': 'NJD',
     'New York Islanders': 'NYI',
     'New York Rangers': 'NYR',
+    'Ottawa Senators': 'OTT',
     'Philadelphia Flyers': 'PHI',
     'Pittsburgh Penguins': 'PIT',
-    'Washington Capitals': 'WSH',
-    'Arizona Coyotes': 'ARI',
-    'Chicago Blackhawks': 'CHI',
-    'Colorado Avalanche': 'COL',
-    'Dallas Stars': 'DAL',
-    'Minnesota Wild': 'MIN',
-    'Nashville Predators': 'NSH',
-    'St. Louis Blues': 'STL',
-    'Winnipeg Jets': 'WPG',
-    'Anaheim Ducks': 'ANA',
-    'Calgary Flames': 'CGY',
-    'Edmonton Oilers': 'EDM',
-    'Los Angeles Kings': 'LAK',
     'San Jose Sharks': 'SJS',
     'Seattle Kraken': 'SEA',
+    'St. Louis Blues': 'STL',
+    'Tampa Bay Lightning': 'TBL',
+    'Toronto Maple Leafs': 'TOR',
+    'Utah Hockey Club': 'UTH',
     'Vancouver Canucks': 'VAN',
-    'Vegas Golden Knights': 'VGK'
+    'Vegas Golden Knights': 'VGK',
+    'Washington Capitals': 'WSH',
+    'Winnipeg Jets': 'WPG'
 }
 
 # Dictionnaire des variations de prénoms
@@ -262,6 +263,14 @@ def select_all_nhl_matches_and_extract_data():
     # Nettoyage des données
     df['Prénom'] = df['Prénom'].fillna('Non disponible')
     df['Nom'] = df['Nom'].fillna('Non disponible')
+    
+    # Réorganisation des colonnes
+    df = df[['Prénom', 'Nom', 'Team', 'Cote']]
+    
+    # Mettre en cache les résultats
+    if 'last_scraping_result' not in st.session_state:
+        st.session_state.last_scraping_result = None
+    st.session_state.last_scraping_result = df
     
     st.success(f"Scraping terminé avec succès! {len(df)} joueurs trouvés.")
     return df
