@@ -75,7 +75,8 @@ PRENOM_VARIATIONS = {
     'Steve': ['Steven'],
     'Rob': ['Robert'],
     'Rick': ['Richard'],
-    'Ondřej':['Ondrej']
+    'Ondřej':['Ondrej'],
+    'Mitchell':['Mitch']
 }
 
 # Créer un dictionnaire inversé pour rechercher le prénom standard à partir d'une variation
