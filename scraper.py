@@ -117,28 +117,29 @@ def select_all_nhl_matches_and_extract_data():
     """
     Sélectionne tous les matchs NHL et extrait les données
     """
-    # Utiliser les identifiants depuis les secrets Streamlit
-    username = st.secrets["credentials"]["username"]
-    password = st.secrets["credentials"]["password"]
-    
-    # Configuration de Chrome pour Streamlit Cloud
-    chrome_options = Options()
-    
-    # Options essentielles pour l'environnement cloud
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-    
-    # Options supplémentaires pour la stabilité
-    chrome_options.add_argument('--disable-gpu')
-    chrome_options.add_argument('--disable-software-rasterizer')
-    chrome_options.add_argument('--remote-debugging-port=9222')
-    chrome_options.add_argument('--disable-extensions')
-    chrome_options.add_argument('--disable-infobars')
-    chrome_options.add_argument('--window-size=1920,1080')
-    chrome_options.add_argument('--log-level=3')
-    
+    driver = None
     try:
+        # Utiliser les identifiants depuis les secrets Streamlit
+        username = st.secrets["credentials"]["username"]
+        password = st.secrets["credentials"]["password"]
+        
+        # Configuration de Chrome pour Streamlit Cloud
+        chrome_options = Options()
+        
+        # Options essentielles pour l'environnement cloud
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        
+        # Options supplémentaires pour la stabilité
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-software-rasterizer')
+        chrome_options.add_argument('--remote-debugging-port=9222')
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-infobars')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument('--log-level=3')
+        
         # Installation et configuration du service Chrome
         service = Service(ChromeDriverManager(version="114.0.5735.90").install())
         driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -225,8 +226,15 @@ def select_all_nhl_matches_and_extract_data():
         except Exception as e:
             print(f"Error selecting matches: {e}")
 
+    except Exception as e:
+        st.error(f"Une erreur s'est produite lors du scraping: {str(e)}")
+        return pd.DataFrame()  # Retourner un DataFrame vide en cas d'erreur
     finally:
-        driver.quit()
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception:
+                pass  # Ignorer les erreurs lors de la fermeture du driver
 
     df = pd.DataFrame(data, columns=["Player", "Team", "Cote"])
     df[['Prénom', 'Nom']] = df['Player'].str.extract(r'([^\s]+)\s*(.*)', expand=True)
