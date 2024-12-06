@@ -107,7 +107,8 @@ PRENOM_VARIATIONS = {
     'Evgeny':['Evgenii'],
     'Evgenii':['Evgenii'],
     'Jonathon':['Jon'],
-    'Frederick':['Frédérick']
+    'Frederick':['Frédérick'],
+    'Matthew':['Matt'],
 }
 
 # Créer un dictionnaire inversé pour rechercher le prénom standard à partir d'une variation
