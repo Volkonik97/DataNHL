@@ -112,6 +112,10 @@ PRENOM_VARIATIONS = {
     'Vasily':['Vasili'],
     'Vasili':['Vasily'],
     'Matthew':['Matty'],
+    'Nicklaus':['Nick'],
+    'Nick':['Nicholaus'],
+    'J.J.':['Janis'],
+    'Janis':['J.J.'],
 }
 
 # Créer un dictionnaire inversé pour rechercher le prénom standard à partir d'une variation
