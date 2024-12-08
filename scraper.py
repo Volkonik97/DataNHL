@@ -113,7 +113,6 @@ PRENOM_VARIATIONS = {
     'Vasili':['Vasily'],
     'Matthew':['Matty'],
     'Nicklaus':['Nick'],
-    'Nick':['Nicholaus'],
     'J.J.':['Janis'],
     'Janis':['J.J.'],
 }
