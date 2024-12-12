@@ -9,7 +9,6 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
-from webdriver_manager.chrome import ChromeDriverManager
 import time
 import re
 from data_processing import enlever_accents_avec_remplacement
@@ -192,10 +191,9 @@ def select_all_nhl_matches_and_extract_data():
         # Utilisation du ChromeDriver installé via packages.txt
         service = Service('/usr/bin/chromedriver')
         driver = webdriver.Chrome(service=service, options=chrome_options)
-        
-        st.write("Navigateur Chromium démarré avec succès!")
         driver.set_page_load_timeout(30)
         
+        st.write("Navigateur Chromium démarré avec succès!")
         # Vérification du mode headless
         st.write(f"Mode headless actif: {driver.execute_script('return navigator.webdriver')}")
         
