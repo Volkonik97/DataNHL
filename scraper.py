@@ -270,7 +270,7 @@ def select_all_nhl_matches_and_extract_data():
                                 team_abbrev = ""
 
                             odds_elements = row.find_elements(By.CSS_SELECTOR, "td.center-cell .oval-background")
-                            odds = {float(od.text) for od in odds_elements[1:] if od.text.strip()}
+                            odds = {float(od.text) for od in odds_elements if od.text.strip()}
                             if odds:
                                 highest_odd = max(odds)
                                 data.append([player_name, team_abbrev, highest_odd])
