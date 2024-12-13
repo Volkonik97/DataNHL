@@ -7,7 +7,12 @@ from firebase_utils import initialize_firebase
 from datetime import datetime, timedelta
 
 # Initialize Firebase
-db = initialize_firebase()
+try:
+    db = initialize_firebase()
+    firebase_initialized = True
+except Exception as e:
+    st.error(f"Erreur lors de l'initialisation de Firebase: {str(e)}")
+    firebase_initialized = False
 
 # Streamlit interface
 st.title("Scraping des Statistiques des Joueurs de Hockey et des Cotes des Matchs")
@@ -19,25 +24,32 @@ def should_refresh_cache(last_update_time):
     return datetime.now() - last_update_time > timedelta(minutes=5)
 
 def load_data_from_firestore(collection_name, expected_columns=None):
+    if not firebase_initialized:
+        return None
+        
     if collection_name not in st.session_state:
         st.session_state[collection_name] = {'data': None, 'last_update': None}
     
     if not should_refresh_cache(st.session_state[collection_name]['last_update']):
         return st.session_state[collection_name]['data']
     
-    docs = db.collection(collection_name).stream()
-    df = pd.DataFrame([doc.to_dict() for doc in docs]) if docs else None
-    
-    if df is not None and not df.empty and expected_columns:
-        df = df.reindex(columns=expected_columns)
-    
-    st.session_state[collection_name]['data'] = df
-    st.session_state[collection_name]['last_update'] = datetime.now()
-    
-    return df
+    try:
+        docs = db.collection(collection_name).stream()
+        df = pd.DataFrame([doc.to_dict() for doc in docs]) if docs else None
+        
+        if df is not None and not df.empty and expected_columns:
+            df = df.reindex(columns=expected_columns)
+        
+        st.session_state[collection_name]['data'] = df
+        st.session_state[collection_name]['last_update'] = datetime.now()
+        
+        return df
+    except Exception as e:
+        st.error(f"Erreur lors du chargement des données depuis Firebase: {str(e)}")
+        return None
 
 # Load data when needed based on the selected menu
-menu = st.sidebar.radio("Navigation", ("Stats joueurs", "Cote joueurs", "Stats + Cotes"))
+menu = st.sidebar.radio("Navigation", ("Stats joueurs", "Cote joueurs", "Stats + Cotes", "Tous les joueurs"))
 
 if menu == "Stats joueurs":
     stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]
@@ -165,6 +177,156 @@ elif menu == "Stats + Cotes":
                 if not team_data.empty:
                     columns = ["Prénom", "Nom", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI", "Cote"]
                     st.dataframe(team_data[columns], use_container_width=True)
+
+elif menu == "Tous les joueurs":
+    st.header("Tous les joueurs")
+    
+    # Chargement des données
+    stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]
+    odds_columns = ["Prénom", "Nom", "Team", "Cote"]
+    
+    stats_df = load_data_from_firestore('stats_joueurs_database', stats_columns)
+    odds_df = load_data_from_firestore('cotes_joueurs_database', odds_columns)
+    
+    if stats_df is not None and odds_df is not None:
+        # Conversion des colonnes en types numériques
+        stats_df["G"] = pd.to_numeric(stats_df["G"], errors='coerce')
+        
+        # Conversion des cotes en nombres flottants
+        odds_df["Cote"] = pd.to_numeric(odds_df["Cote"], errors='coerce')
+        
+        # Fusion des données
+        merged_df = pd.merge(stats_df, odds_df[["Prénom", "Nom", "Cote"]], 
+                           on=["Prénom", "Nom"], how="outer")
+        
+        # Remplacement des NaN par 0 pour les buts et 999 pour les cotes
+        merged_df["G"] = merged_df["G"].fillna(0)
+        merged_df["Cote"] = merged_df["Cote"].fillna(999)
+        
+        # Conversion de la colonne Team en chaînes et remplacement des valeurs manquantes
+        merged_df["Team"] = merged_df["Team"].astype(str)
+        merged_df.loc[merged_df["Team"].isin(["nan", "None", ""]), "Team"] = "Non assigné"
+        
+        # Conversion de la colonne Pos en chaînes et remplacement des valeurs manquantes
+        merged_df["Pos"] = merged_df["Pos"].astype(str)
+        merged_df.loc[merged_df["Pos"].isin(["nan", "None", ""]), "Pos"] = "Non assigné"
+        
+        # Filtres dans des colonnes
+        col1, col2 = st.columns([2, 2])
+        
+        with col1:
+            with st.expander(" Sélection des équipes"):
+                # Liste des équipes avec cases à cocher
+                valid_teams = sorted([str(team) for team in merged_df["Team"].unique() 
+                                    if str(team) not in ["nan", "None", "", "Non assigné"]])
+                
+                # Boutons pour tout sélectionner/désélectionner
+                col1_1, col1_2 = st.columns(2)
+                with col1_1:
+                    if st.button("Tout sélectionner", key="select_all_teams"):
+                        st.session_state.selected_teams = valid_teams
+                with col1_2:
+                    if st.button("Tout désélectionner", key="deselect_all_teams"):
+                        st.session_state.selected_teams = []
+                
+                # Initialiser la session state si nécessaire
+                if 'selected_teams' not in st.session_state:
+                    st.session_state.selected_teams = valid_teams
+                
+                # Créer les cases à cocher
+                selected_teams = []
+                for team in valid_teams:
+                    if st.checkbox(team, value=team in st.session_state.selected_teams, key=f"team_{team}"):
+                        selected_teams.append(team)
+                st.session_state.selected_teams = selected_teams
+            
+        with col2:
+            with st.expander(" Sélection des positions"):
+                # Liste des positions avec cases à cocher
+                valid_positions = sorted([str(pos) for pos in merged_df["Pos"].unique() 
+                                       if str(pos) not in ["nan", "None", "", "Non assigné"]])
+                
+                # Boutons pour tout sélectionner/désélectionner
+                col2_1, col2_2 = st.columns(2)
+                with col2_1:
+                    if st.button("Tout sélectionner", key="select_all_pos"):
+                        st.session_state.selected_positions = valid_positions
+                with col2_2:
+                    if st.button("Tout désélectionner", key="deselect_all_pos"):
+                        st.session_state.selected_positions = []
+                
+                # Initialiser la session state si nécessaire
+                if 'selected_positions' not in st.session_state:
+                    st.session_state.selected_positions = valid_positions
+                
+                # Créer les cases à cocher
+                selected_positions = []
+                for pos in valid_positions:
+                    if st.checkbox(pos, value=pos in st.session_state.selected_positions, key=f"pos_{pos}"):
+                        selected_positions.append(pos)
+                st.session_state.selected_positions = selected_positions
+        
+        # Filtres numériques dans une nouvelle ligne
+        col3, col4 = st.columns(2)
+        with col3:
+            min_cote = st.number_input("Cote minimum", 
+                                     min_value=1.0,
+                                     max_value=float(merged_df["Cote"].max()),
+                                     value=1.0,
+                                     step=0.1)
+        with col4:
+            min_buts = st.number_input("Nombre minimum de buts", 
+                                     min_value=0,
+                                     max_value=int(merged_df["G"].max()),
+                                     value=0)
+        
+        # Application des filtres
+        filtered_df = merged_df[
+            (merged_df["Cote"] >= min_cote) & 
+            (merged_df["G"] >= min_buts) &
+            (merged_df["Cote"] < 999)  # Exclure les joueurs sans cote
+        ]
+        
+        # Filtre par équipes sélectionnées
+        if selected_teams:
+            filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
+            
+        # Filtre par position(s)
+        if selected_positions:
+            filtered_df = filtered_df[filtered_df["Pos"].isin(selected_positions)]
+        
+        # Tri des colonnes et remplacement des valeurs manquantes
+        display_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "Cote"]
+        filtered_df = filtered_df[display_columns].copy()
+        
+        # Remplir les valeurs manquantes pour l'affichage
+        for col in display_columns:
+            if col not in ["G", "Cote"]:  # Ne pas remplir les colonnes numériques
+                filtered_df[col] = filtered_df[col].fillna("Non disponible")
+        
+        # Tri final
+        filtered_df = filtered_df.sort_values(["Team", "Nom"])
+        
+        # Statistiques par équipe
+        if len(filtered_df) > 0:
+            st.write(f"Nombre de joueurs affichés : {len(filtered_df)}")
+            
+            # Statistiques agrégées par équipe
+            team_stats = filtered_df.groupby("Team").agg({
+                "G": "sum",
+                "Cote": "mean"
+            }).round(2)
+            
+            # Afficher les statistiques par équipe dans un expander
+            with st.expander("Statistiques par équipe"):
+                st.dataframe(team_stats, use_container_width=True)
+            
+            # Afficher le tableau principal
+            st.dataframe(filtered_df, use_container_width=True)
+        else:
+            st.warning("Aucun joueur ne correspond aux critères sélectionnés.")
+    else:
+        st.warning("Veuillez d'abord récupérer les statistiques et les cotes des joueurs.")
 
 # Options d'exportation des données localement
 if st.sidebar.button("Télécharger les données", key="download_data"):
