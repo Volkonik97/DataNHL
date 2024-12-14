@@ -181,31 +181,23 @@ elif menu == "Stats + Cotes":
 elif menu == "Tous les joueurs":
     st.header("Tous les joueurs")
     
-    def update_all_players_data(stats_df, odds_df):
-        """
-        Met à jour les données dans Firebase avec les dernières données scrapées
-        """
-        if stats_df is not None and odds_df is not None:
-            # Mise à jour des stats des joueurs
-            update_firestore_collection('stats_joueurs_database', stats_df)
-            # Mise à jour des cotes des joueurs
-            update_firestore_collection('cotes_joueurs_database', odds_df)
-            return True
-        return False
-
-    # Bouton d'actualisation
+    # Bouton d'actualisation avec spinner
     if st.button("🔄 Actualiser avec les dernières données"):
-        # Récupérer les dernières données scrapées de la session
-        latest_stats = st.session_state.get('latest_stats_df')
-        latest_odds = st.session_state.get('latest_odds_df')
-        
-        if latest_stats is not None and latest_odds is not None:
-            if update_all_players_data(latest_stats, latest_odds):
-                st.success("Données mises à jour avec succès!")
+        with st.spinner("Mise à jour des données en cours..."):
+            # Récupérer les dernières données fusionnées
+            if 'merged_data' in st.session_state:
+                merged_df = st.session_state.merged_data
+                if merged_df is not None:
+                    # Mettre à jour Firebase avec les données fusionnées
+                    if update_firestore_collection('stats_joueurs_database', st.session_state.get('latest_stats_df')) and \
+                       update_firestore_collection('cotes_joueurs_database', st.session_state.get('latest_odds_df')):
+                        st.success("Données mises à jour avec succès!")
+                    else:
+                        st.error("Erreur lors de la mise à jour des données")
+                else:
+                    st.warning("Aucune donnée fusionnée disponible")
             else:
-                st.error("Erreur lors de la mise à jour des données")
-        else:
-            st.warning("Aucune nouvelle donnée disponible. Veuillez d'abord scraper les données dans l'onglet Stats + Cotes")
+                st.warning("Veuillez d'abord fusionner les données dans l'onglet Stats + Cotes")
     
     # Chargement des données
     stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]

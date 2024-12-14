@@ -53,7 +53,7 @@ def initialize_firebase():
 
 def update_firestore_collection(collection_name, df):
     """
-    Met à jour une collection Firestore avec les données d'un DataFrame
+    Met à jour une collection Firestore avec les données d'un DataFrame de manière optimisée
     """
     if not firebase_admin._apps:
         initialize_firebase()
@@ -63,22 +63,58 @@ def update_firestore_collection(collection_name, df):
     
     db = firestore.client()
     collection_ref = db.collection(collection_name)
+    batch = db.batch()
+    batch_size = 0
+    max_batch_size = 500  # Limite de Firestore pour les opérations par batch
     
     try:
-        # Supprimer tous les documents existants
+        # Créer un index des documents existants par nom complet
+        existing_docs = {}
         docs = collection_ref.stream()
         for doc in docs:
-            doc.reference.delete()
+            data = doc.to_dict()
+            if 'Prénom' in data and 'Nom' in data:
+                key = f"{data['Prénom']}_{data['Nom']}"
+                existing_docs[key] = doc.reference
         
-        # Ajouter les nouvelles données
+        # Mettre à jour ou ajouter les nouvelles données
         for _, row in df.iterrows():
-            # Convertir la ligne en dictionnaire et nettoyer les valeurs NaN
-            doc_data = row.to_dict()
-            # Remplacer les valeurs NaN par None pour Firestore
-            doc_data = {k: None if pd.isna(v) else v for k, v in doc_data.items()}
-            collection_ref.add(doc_data)
+            doc_data = {k: None if pd.isna(v) else v for k, v in row.to_dict().items()}
+            key = f"{doc_data['Prénom']}_{doc_data['Nom']}"
+            
+            if key in existing_docs:
+                # Mettre à jour le document existant
+                batch.update(existing_docs[key], doc_data)
+                del existing_docs[key]  # Retirer de la liste des documents existants
+            else:
+                # Créer un nouveau document
+                new_doc_ref = collection_ref.document()
+                batch.set(new_doc_ref, doc_data)
+            
+            batch_size += 1
+            
+            # Commiter le batch s'il atteint la limite
+            if batch_size >= max_batch_size:
+                batch.commit()
+                batch = db.batch()
+                batch_size = 0
+        
+        # Supprimer les documents qui n'existent plus dans le DataFrame
+        for doc_ref in existing_docs.values():
+            batch.delete(doc_ref)
+            batch_size += 1
+            
+            if batch_size >= max_batch_size:
+                batch.commit()
+                batch = db.batch()
+                batch_size = 0
+        
+        # Commiter les dernières modifications
+        if batch_size > 0:
+            batch.commit()
         
         return True
+        
     except Exception as e:
         print(f"Erreur lors de la mise à jour de Firestore: {str(e)}")
         return False
