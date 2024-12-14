@@ -193,22 +193,32 @@ elif menu == "Tous les joueurs":
         merged_df = fusionner_donnees_par_prenom_nom(stats_df, odds_df)
         
         if merged_df is not None:
+            # Convertir les colonnes en numérique
+            merged_df["Cote"] = pd.to_numeric(merged_df["Cote"], errors='coerce')
+            merged_df["G"] = pd.to_numeric(merged_df["G"], errors='coerce')
+            
+            # Remplacer les NaN par des valeurs par défaut
+            merged_df["Cote"] = merged_df["Cote"].fillna(999)
+            merged_df["G"] = merged_df["G"].fillna(0)
+            
             # Filtres pour les données
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 # Filtre de cote minimum
+                max_cote = min(merged_df[merged_df["Cote"] < 999]["Cote"].max(), 10.0)  # Limiter à 10.0 maximum
                 min_cote = st.number_input("Cote minimum", 
                                          min_value=1.0,
-                                         max_value=float(merged_df["Cote"].max()),
+                                         max_value=float(max_cote),
                                          value=1.0,
                                          step=0.1)
             
             with col2:
                 # Filtre de buts minimum
+                max_buts = int(merged_df["G"].max())
                 min_buts = st.number_input("Nombre minimum de buts", 
                                          min_value=0,
-                                         max_value=int(merged_df["G"].max()),
+                                         max_value=max_buts,
                                          value=0)
             
             with col3:
@@ -231,14 +241,14 @@ elif menu == "Tous les joueurs":
             with st.expander(" Filtrer par équipe"):
                 # Obtenir toutes les équipes valides
                 valid_teams = sorted([str(team) for team in filtered_df["Team"].unique() 
-                                   if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
+                                    if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
                 
                 # Boutons pour tout sélectionner/désélectionner
-                col1, col2 = st.columns(2)
-                with col1:
+                col1_1, col1_2 = st.columns(2)
+                with col1_1:
                     if st.button("Tout sélectionner", key="select_all_teams"):
                         st.session_state.selected_teams = valid_teams
-                with col2:
+                with col1_2:
                     if st.button("Tout désélectionner", key="deselect_all_teams"):
                         st.session_state.selected_teams = []
                 
@@ -260,11 +270,11 @@ elif menu == "Tous les joueurs":
                                        if str(pos) not in ["nan", "None", "", "Non assigné"]])
                 
                 # Boutons pour tout sélectionner/désélectionner
-                col1, col2 = st.columns(2)
-                with col1:
+                col2_1, col2_2 = st.columns(2)
+                with col2_1:
                     if st.button("Tout sélectionner", key="select_all_pos"):
                         st.session_state.selected_positions = valid_positions
-                with col2:
+                with col2_2:
                     if st.button("Tout désélectionner", key="deselect_all_pos"):
                         st.session_state.selected_positions = []
                 
@@ -421,15 +431,17 @@ elif menu == "Tous les joueurs":
         # Filtres numériques dans une nouvelle ligne
         col3, col4 = st.columns(2)
         with col3:
+            max_cote = min(merged_df[merged_df["Cote"] < 999]["Cote"].max(), 10.0)  # Limiter à 10.0 maximum
             min_cote = st.number_input("Cote minimum", 
                                      min_value=1.0,
-                                     max_value=float(merged_df["Cote"].max()),
+                                     max_value=float(max_cote),
                                      value=1.0,
                                      step=0.1)
         with col4:
+            max_buts = int(merged_df["G"].max())
             min_buts = st.number_input("Nombre minimum de buts", 
                                      min_value=0,
-                                     max_value=int(merged_df["G"].max()),
+                                     max_value=max_buts,
                                      value=0)
         
         # Application des filtres
