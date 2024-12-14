@@ -58,18 +58,27 @@ def update_firestore_collection(collection_name, df):
     if not firebase_admin._apps:
         initialize_firebase()
     
+    if df is None or df.empty:
+        return False
+    
     db = firestore.client()
     collection_ref = db.collection(collection_name)
     
-    # Supprimer tous les documents existants
-    docs = collection_ref.stream()
-    for doc in docs:
-        doc.reference.delete()
-    
-    # Ajouter les nouvelles données
-    for _, row in df.iterrows():
-        # Convertir la ligne en dictionnaire et nettoyer les valeurs NaN
-        doc_data = row.to_dict()
-        # Remplacer les valeurs NaN par None pour Firestore
-        doc_data = {k: None if pd.isna(v) else v for k, v in doc_data.items()}
-        collection_ref.add(doc_data)
+    try:
+        # Supprimer tous les documents existants
+        docs = collection_ref.stream()
+        for doc in docs:
+            doc.reference.delete()
+        
+        # Ajouter les nouvelles données
+        for _, row in df.iterrows():
+            # Convertir la ligne en dictionnaire et nettoyer les valeurs NaN
+            doc_data = row.to_dict()
+            # Remplacer les valeurs NaN par None pour Firestore
+            doc_data = {k: None if pd.isna(v) else v for k, v in doc_data.items()}
+            collection_ref.add(doc_data)
+        
+        return True
+    except Exception as e:
+        print(f"Erreur lors de la mise à jour de Firestore: {str(e)}")
+        return False
