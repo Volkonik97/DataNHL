@@ -107,76 +107,48 @@ elif menu == "Cote joueurs":
         st.dataframe(st.session_state.odds_data, use_container_width=True)
 
 elif menu == "Stats + Cotes":
-    st.header("Statistiques et Cotes des Joueurs")
-    if 'last_merge_time' in st.session_state:
-        st.write(f"Dernière fusion des données : {st.session_state.last_merge_time}")
+    st.header("Stats + Cotes")
     
-    # Charger les données nécessaires si ce n'est pas déjà fait
-    stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]
-    odds_columns = ["Prénom", "Nom", "Cote"]
+    col1, col2 = st.columns(2)
     
-    if 'stats' not in st.session_state or st.session_state.stats is None:
-        st.session_state.stats = load_data_from_firestore('stats_joueurs_database', stats_columns)
+    with col1:
+        if st.button("Scraper les stats"):
+            stats_df = scrape_player_stats()
+            if stats_df is not None:
+                st.session_state['latest_stats_df'] = stats_df  # Sauvegarder dans la session
+                st.write("Stats des joueurs:")
+                st.write(stats_df)
+                
+                # Sauvegarder dans Firebase
+                update_firestore_collection('stats_joueurs_database', stats_df)
+                st.success("Stats sauvegardées dans Firebase!")
+            else:
+                st.error("Erreur lors du scraping des stats")
     
-    if 'odds_data' not in st.session_state or st.session_state.odds_data is None:
-        st.session_state.odds_data = load_data_from_firestore('cotes_joueurs_database', odds_columns)
+    with col2:
+        if st.button("Scraper les cotes"):
+            odds_df = select_all_nhl_matches_and_extract_data()
+            if odds_df is not None:
+                st.session_state['latest_odds_df'] = odds_df  # Sauvegarder dans la session
+                st.write("Cotes des joueurs:")
+                st.write(odds_df)
+                
+                # Sauvegarder dans Firebase
+                update_firestore_collection('cotes_joueurs_database', odds_df)
+                st.success("Cotes sauvegardées dans Firebase!")
+            else:
+                st.error("Erreur lors du scraping des cotes")
     
-    if st.button("Fusionner les données et afficher", key="merge_data", help="Cliquez pour fusionner les données de statistiques et de cotes"):
-        if st.session_state.stats is not None and st.session_state.odds_data is not None:
-            # Fusionner les données
-            merged_data = fusionner_donnees_par_prenom_nom(st.session_state.stats, st.session_state.odds_data)
-            st.session_state.merged_data = merged_data
-            
-            # Afficher les données après fusion
-            st.write("### Données après fusion:")
-            st.write(f"Nombre total de joueurs: {len(merged_data)}")
-            st.success("Données fusionnées avec succès!")
-
-    # Afficher les données fusionnées par équipe
-    if hasattr(st.session_state, 'merged_data') and st.session_state.merged_data is not None:
-        # Filtrer pour exclure l'équipe "0" et convertir toutes les équipes en string avant le tri
-        filtered_data = st.session_state.merged_data[st.session_state.merged_data['Team'].astype(str) != "0"]
+    # Afficher les données fusionnées si disponibles
+    if 'latest_stats_df' in st.session_state and 'latest_odds_df' in st.session_state:
+        stats_df = st.session_state['latest_stats_df']
+        odds_df = st.session_state['latest_odds_df']
         
-        # Créer deux colonnes pour les champs de recherche
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            # Champ de recherche pour les équipes
-            search_team = st.text_input("Rechercher une équipe (ex: MTL, TOR, BOS...)", "").upper()
-        
-        with col2:
-            # Champ de recherche pour les joueurs
-            search_player = st.text_input("Rechercher un joueur (nom ou prénom)", "").strip()
-        
-        # Filtrer les données selon la recherche de joueur
-        if search_player:
-            search_terms = search_player.lower().split()
-            mask = filtered_data.apply(lambda x: any(term in x['Nom'].lower() for term in search_terms) or 
-                                               any(term in x['Prénom'].lower() for term in search_terms), axis=1)
-            filtered_data = filtered_data[mask]
-            if filtered_data.empty:
-                st.warning(f"Aucun joueur trouvé pour '{search_player}'")
-                st.stop()
-            
-        teams = sorted(filtered_data['Team'].astype(str).unique())
-        
-        # Filtrer les équipes selon la recherche d'équipe
-        if search_team:
-            teams = [team for team in teams if search_team in team.upper()]
-            if not teams:
-                st.warning(f"Aucune équipe trouvée pour '{search_team}'")
-                st.stop()
-        
-        # Créer des onglets pour chaque équipe
-        tabs = st.tabs(teams)
-        
-        # Pour chaque équipe, afficher ses joueurs dans son onglet
-        for team, tab in zip(teams, tabs):
-            with tab:
-                team_data = filtered_data[filtered_data['Team'].astype(str) == team].copy()
-                if not team_data.empty:
-                    columns = ["Prénom", "Nom", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI", "Cote"]
-                    st.dataframe(team_data[columns], use_container_width=True)
+        if stats_df is not None and odds_df is not None:
+            merged_df = fusionner_donnees_par_prenom_nom(stats_df, odds_df)
+            if merged_df is not None:
+                st.write("Données fusionnées:")
+                st.write(merged_df)
 
 elif menu == "Tous les joueurs":
     st.header("Tous les joueurs")
