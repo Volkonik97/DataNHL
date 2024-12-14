@@ -59,62 +59,67 @@ def update_firestore_collection(collection_name, df):
         initialize_firebase()
     
     if df is None or df.empty:
+        print(f"DataFrame vide ou None pour {collection_name}")
         return False
     
-    db = firestore.client()
-    collection_ref = db.collection(collection_name)
-    batch = db.batch()
-    batch_size = 0
-    max_batch_size = 500  # Limite de Firestore pour les opérations par batch
-    
     try:
+        db = firestore.client()
+        collection_ref = db.collection(collection_name)
+        
+        # Vérifier que les colonnes requises sont présentes
+        required_columns = ['Prénom', 'Nom']
+        missing_columns = [col for col in required_columns if col not in df.columns]
+        if missing_columns:
+            print(f"Colonnes manquantes dans le DataFrame: {missing_columns}")
+            return False
+        
         # Créer un index des documents existants par nom complet
         existing_docs = {}
-        docs = collection_ref.stream()
-        for doc in docs:
-            data = doc.to_dict()
-            if 'Prénom' in data and 'Nom' in data:
-                key = f"{data['Prénom']}_{data['Nom']}"
-                existing_docs[key] = doc.reference
+        try:
+            docs = collection_ref.stream()
+            for doc in docs:
+                data = doc.to_dict()
+                if all(key in data for key in ['Prénom', 'Nom']):
+                    key = f"{data['Prénom']}_{data['Nom']}"
+                    existing_docs[key] = doc.reference
+        except Exception as e:
+            print(f"Erreur lors de la lecture des documents existants: {str(e)}")
+            return False
         
         # Mettre à jour ou ajouter les nouvelles données
+        updates_count = 0
         for _, row in df.iterrows():
-            doc_data = {k: None if pd.isna(v) else v for k, v in row.to_dict().items()}
-            key = f"{doc_data['Prénom']}_{doc_data['Nom']}"
-            
-            if key in existing_docs:
-                # Mettre à jour le document existant
-                batch.update(existing_docs[key], doc_data)
-                del existing_docs[key]  # Retirer de la liste des documents existants
-            else:
-                # Créer un nouveau document
-                new_doc_ref = collection_ref.document()
-                batch.set(new_doc_ref, doc_data)
-            
-            batch_size += 1
-            
-            # Commiter le batch s'il atteint la limite
-            if batch_size >= max_batch_size:
-                batch.commit()
-                batch = db.batch()
-                batch_size = 0
+            try:
+                doc_data = {k: None if pd.isna(v) else v for k, v in row.to_dict().items()}
+                key = f"{doc_data['Prénom']}_{doc_data['Nom']}"
+                
+                if key in existing_docs:
+                    # Mettre à jour le document existant
+                    existing_docs[key].update(doc_data)
+                else:
+                    # Créer un nouveau document
+                    collection_ref.add(doc_data)
+                updates_count += 1
+            except Exception as e:
+                print(f"Erreur lors de la mise à jour/création du document pour {key}: {str(e)}")
+                continue
         
         # Supprimer les documents qui n'existent plus dans le DataFrame
-        for doc_ref in existing_docs.values():
-            batch.delete(doc_ref)
-            batch_size += 1
-            
-            if batch_size >= max_batch_size:
-                batch.commit()
-                batch = db.batch()
-                batch_size = 0
+        deletes_count = 0
+        for key, doc_ref in existing_docs.items():
+            try:
+                if key not in [f"{row['Prénom']}_{row['Nom']}" for _, row in df.iterrows()]:
+                    doc_ref.delete()
+                    deletes_count += 1
+            except Exception as e:
+                print(f"Erreur lors de la suppression du document {key}: {str(e)}")
+                continue
         
-        # Commiter les dernières modifications
-        if batch_size > 0:
-            batch.commit()
-        
+        print(f"Mise à jour réussie pour {collection_name}:")
+        print(f"- {updates_count} documents mis à jour/créés")
+        print(f"- {deletes_count} documents supprimés")
         return True
         
     except Exception as e:
-        print(f"Erreur lors de la mise à jour de Firestore: {str(e)}")
+        print(f"Erreur lors de la mise à jour de Firestore pour {collection_name}: {str(e)}")
         return False

@@ -181,23 +181,157 @@ elif menu == "Stats + Cotes":
 elif menu == "Tous les joueurs":
     st.header("Tous les joueurs")
     
+    # Chargement des données
+    stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]
+    odds_columns = ["Prénom", "Nom", "Team", "Cote"]
+    
+    stats_df = load_data_from_firestore('stats_joueurs_database', stats_columns)
+    odds_df = load_data_from_firestore('cotes_joueurs_database', odds_columns)
+    
+    if stats_df is not None and odds_df is not None:
+        # Fusionner les données
+        merged_df = fusionner_donnees_par_prenom_nom(stats_df, odds_df)
+        
+        if merged_df is not None:
+            # Filtres pour les données
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Filtre de cote minimum
+                min_cote = st.number_input("Cote minimum", 
+                                         min_value=1.0,
+                                         max_value=float(merged_df["Cote"].max()),
+                                         value=1.0,
+                                         step=0.1)
+            
+            with col2:
+                # Filtre de buts minimum
+                min_buts = st.number_input("Nombre minimum de buts", 
+                                         min_value=0,
+                                         max_value=int(merged_df["G"].max()),
+                                         value=0)
+            
+            with col3:
+                # Filtre pour exclure les cotes manquantes
+                show_missing_odds = st.checkbox("Afficher les joueurs sans cote", value=False)
+            
+            # Créer une copie pour les filtres
+            filtered_df = merged_df.copy()
+            
+            # Appliquer les filtres
+            if not show_missing_odds:
+                filtered_df = filtered_df[filtered_df["Cote"] < 999]  # Exclure les joueurs sans cote
+            
+            filtered_df = filtered_df[
+                (filtered_df["Cote"] >= min_cote) & 
+                (filtered_df["G"] >= min_buts)
+            ]
+            
+            # Expander pour les filtres d'équipe
+            with st.expander(" Filtrer par équipe"):
+                # Obtenir toutes les équipes valides
+                valid_teams = sorted([str(team) for team in filtered_df["Team"].unique() 
+                                   if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
+                
+                # Boutons pour tout sélectionner/désélectionner
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Tout sélectionner", key="select_all_teams"):
+                        st.session_state.selected_teams = valid_teams
+                with col2:
+                    if st.button("Tout désélectionner", key="deselect_all_teams"):
+                        st.session_state.selected_teams = []
+                
+                # Initialiser la session state si nécessaire
+                if 'selected_teams' not in st.session_state:
+                    st.session_state.selected_teams = valid_teams
+                
+                # Créer les cases à cocher
+                selected_teams = []
+                for team in valid_teams:
+                    if st.checkbox(team, value=team in st.session_state.selected_teams, key=f"team_{team}"):
+                        selected_teams.append(team)
+                st.session_state.selected_teams = selected_teams
+            
+            # Expander pour les filtres de position
+            with st.expander(" Filtrer par position"):
+                # Obtenir toutes les positions valides
+                valid_positions = sorted([str(pos) for pos in filtered_df["Pos"].unique() 
+                                       if str(pos) not in ["nan", "None", "", "Non assigné"]])
+                
+                # Boutons pour tout sélectionner/désélectionner
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("Tout sélectionner", key="select_all_pos"):
+                        st.session_state.selected_positions = valid_positions
+                with col2:
+                    if st.button("Tout désélectionner", key="deselect_all_pos"):
+                        st.session_state.selected_positions = []
+                
+                # Initialiser la session state si nécessaire
+                if 'selected_positions' not in st.session_state:
+                    st.session_state.selected_positions = valid_positions
+                
+                # Créer les cases à cocher
+                selected_positions = []
+                for pos in valid_positions:
+                    if st.checkbox(pos, value=pos in st.session_state.selected_positions, key=f"pos_{pos}"):
+                        selected_positions.append(pos)
+                st.session_state.selected_positions = selected_positions
+            
+            # Appliquer les filtres d'équipe et de position
+            if selected_teams:
+                filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
+            if selected_positions:
+                filtered_df = filtered_df[filtered_df["Pos"].isin(selected_positions)]
+            
+            # Afficher le nombre total de joueurs
+            st.write(f"Nombre total de joueurs : {len(filtered_df)}")
+            
+            # Afficher les données
+            if not filtered_df.empty:
+                st.dataframe(filtered_df[["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI", "Cote"]], 
+                           use_container_width=True)
+            else:
+                st.warning("Aucun joueur ne correspond aux critères sélectionnés")
+        else:
+            st.error("Erreur lors de la fusion des données")
+    else:
+        st.error("Erreur lors du chargement des données")
+    
     # Bouton d'actualisation avec spinner
-    if st.button("🔄 Actualiser avec les dernières données"):
+    if st.button(" Actualiser avec les dernières données"):
         with st.spinner("Mise à jour des données en cours..."):
             # Récupérer les dernières données fusionnées
-            if 'merged_data' in st.session_state:
-                merged_df = st.session_state.merged_data
-                if merged_df is not None:
-                    # Mettre à jour Firebase avec les données fusionnées
-                    if update_firestore_collection('stats_joueurs_database', st.session_state.get('latest_stats_df')) and \
-                       update_firestore_collection('cotes_joueurs_database', st.session_state.get('latest_odds_df')):
-                        st.success("Données mises à jour avec succès!")
-                    else:
-                        st.error("Erreur lors de la mise à jour des données")
-                else:
-                    st.warning("Aucune donnée fusionnée disponible")
-            else:
+            if 'merged_data' not in st.session_state:
                 st.warning("Veuillez d'abord fusionner les données dans l'onglet Stats + Cotes")
+                st.stop()
+            
+            merged_df = st.session_state.merged_data
+            if merged_df is None:
+                st.warning("Aucune donnée fusionnée disponible")
+                st.stop()
+            
+            latest_stats = st.session_state.get('latest_stats_df')
+            latest_odds = st.session_state.get('latest_odds_df')
+            
+            if latest_stats is None or latest_odds is None:
+                st.warning("Données de stats ou de cotes manquantes")
+                st.stop()
+            
+            # Mettre à jour Firebase avec les données fusionnées
+            stats_success = update_firestore_collection('stats_joueurs_database', latest_stats)
+            odds_success = update_firestore_collection('cotes_joueurs_database', latest_odds)
+            
+            if stats_success and odds_success:
+                st.success("Données mises à jour avec succès!")
+            else:
+                error_msg = []
+                if not stats_success:
+                    error_msg.append("Erreur lors de la mise à jour des statistiques")
+                if not odds_success:
+                    error_msg.append("Erreur lors de la mise à jour des cotes")
+                st.error("\n".join(error_msg))
     
     # Chargement des données
     stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]
