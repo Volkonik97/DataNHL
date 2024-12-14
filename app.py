@@ -3,7 +3,7 @@
 import streamlit as st
 import pandas as pd
 from scraper import scrape_player_stats, select_all_nhl_matches_and_extract_data, fusionner_donnees_par_prenom_nom
-from firebase_utils import initialize_firebase
+from firebase_utils import initialize_firebase, update_firestore_collection
 from datetime import datetime, timedelta
 
 # Initialize Firebase
@@ -180,6 +180,32 @@ elif menu == "Stats + Cotes":
 
 elif menu == "Tous les joueurs":
     st.header("Tous les joueurs")
+    
+    def update_all_players_data(stats_df, odds_df):
+        """
+        Met à jour les données dans Firebase avec les dernières données scrapées
+        """
+        if stats_df is not None and odds_df is not None:
+            # Mise à jour des stats des joueurs
+            update_firestore_collection('stats_joueurs_database', stats_df)
+            # Mise à jour des cotes des joueurs
+            update_firestore_collection('cotes_joueurs_database', odds_df)
+            return True
+        return False
+
+    # Bouton d'actualisation
+    if st.button("🔄 Actualiser avec les dernières données"):
+        # Récupérer les dernières données scrapées de la session
+        latest_stats = st.session_state.get('latest_stats_df')
+        latest_odds = st.session_state.get('latest_odds_df')
+        
+        if latest_stats is not None and latest_odds is not None:
+            if update_all_players_data(latest_stats, latest_odds):
+                st.success("Données mises à jour avec succès!")
+            else:
+                st.error("Erreur lors de la mise à jour des données")
+        else:
+            st.warning("Aucune nouvelle donnée disponible. Veuillez d'abord scraper les données dans l'onglet Stats + Cotes")
     
     # Chargement des données
     stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]

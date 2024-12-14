@@ -3,6 +3,7 @@ from firebase_admin import credentials, firestore
 import firebase_admin
 import tempfile
 import json
+import pandas as pd
 
 def initialize_firebase():
     # Vérifier si Firebase est déjà initialisé
@@ -49,3 +50,26 @@ def initialize_firebase():
 
     # Retourner le client Firestore
     return firestore.client()
+
+def update_firestore_collection(collection_name, df):
+    """
+    Met à jour une collection Firestore avec les données d'un DataFrame
+    """
+    if not firebase_admin._apps:
+        initialize_firebase()
+    
+    db = firestore.client()
+    collection_ref = db.collection(collection_name)
+    
+    # Supprimer tous les documents existants
+    docs = collection_ref.stream()
+    for doc in docs:
+        doc.reference.delete()
+    
+    # Ajouter les nouvelles données
+    for _, row in df.iterrows():
+        # Convertir la ligne en dictionnaire et nettoyer les valeurs NaN
+        doc_data = row.to_dict()
+        # Remplacer les valeurs NaN par None pour Firestore
+        doc_data = {k: None if pd.isna(v) else v for k, v in doc_data.items()}
+        collection_ref.add(doc_data)
