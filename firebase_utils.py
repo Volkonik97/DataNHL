@@ -3,7 +3,6 @@ from firebase_admin import credentials, firestore
 import firebase_admin
 import tempfile
 import json
-import pandas as pd
 
 def initialize_firebase():
     # Vérifier si Firebase est déjà initialisé
@@ -50,38 +49,6 @@ def initialize_firebase():
 
     # Retourner le client Firestore
     return firestore.client()
-
-def update_firestore_collection(collection_name, df):
-    """
-    Met à jour une collection Firestore avec les données d'un DataFrame de manière optimisée
-    """
-    if not firebase_admin._apps:
-        initialize_firebase()
-    
-    if df is None or df.empty:
-        print(f"DataFrame vide ou None pour {collection_name}")
-        return False
-    
-    try:
-        db = firestore.client()
-        collection_ref = db.collection(collection_name)
-        
-        # Vérifier que les colonnes requises sont présentes
-        required_columns = ['Prénom', 'Nom']
-        missing_columns = [col for col in required_columns if col not in df.columns]
-        if missing_columns:
-            print(f"Colonnes manquantes dans le DataFrame: {missing_columns}")
-            return False
-        
-        # Créer un index des documents existants par nom complet
-        existing_docs = {}
-        try:
-            docs = collection_ref.stream()
-            for doc in docs:
-                data = doc.to_dict()
-                if all(key in data for key in ['Prénom', 'Nom']):
-                    key = f"{data['Prénom']}_{data['Nom']}"
-                    existing_docs[key] = doc.reference
         except Exception as e:
             print(f"Erreur lors de la lecture des documents existants: {str(e)}")
             return False
