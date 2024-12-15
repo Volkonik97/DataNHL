@@ -9,10 +9,9 @@ from datetime import datetime, timedelta
 # Initialize Firebase
 try:
     db = initialize_firebase()
-    firebase_initialized = True
 except Exception as e:
-    st.error(f"Erreur lors de l'initialisation de Firebase: {str(e)}")
-    firebase_initialized = False
+    st.error(f"Erreur d'initialisation de Firebase: {str(e)}")
+    st.stop()
 
 # Streamlit interface
 st.title("Scraping des Statistiques des Joueurs de Hockey et des Cotes des Matchs")
@@ -24,7 +23,7 @@ def should_refresh_cache(last_update_time):
     return datetime.now() - last_update_time > timedelta(minutes=5)
 
 def load_data_from_firestore(collection_name, expected_columns=None):
-    if not firebase_initialized:
+    if not db:
         return None
         
     if collection_name not in st.session_state:

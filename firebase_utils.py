@@ -3,6 +3,7 @@ from firebase_admin import credentials, firestore
 import firebase_admin
 import tempfile
 import json
+import pandas as pd
 
 def initialize_firebase():
     # Vérifier si Firebase est déjà initialisé
@@ -14,44 +15,37 @@ def initialize_firebase():
             "auth_provider_x509_cert_url", "client_x509_cert_url"
         ]
         
-        cred_dict = dict(st.secrets["firebase_credentials"])
-        
-        # Ensure type field is correctly set
-        if "type" not in cred_dict or cred_dict["type"] != "service_account":
-            cred_dict["type"] = "service_account"
-        
-        # Vérifier que tous les champs requis sont présents
-        missing_fields = [field for field in required_fields if field not in cred_dict]
-        if missing_fields:
-            raise ValueError(f"Missing required fields in credentials: {', '.join(missing_fields)}")
-        
-        # S'assurer que la private_key est correctement formatée
-        if "private_key" in cred_dict:
-            # Remove any existing BEGIN/END markers and whitespace
-            key = cred_dict["private_key"].replace("-----BEGIN PRIVATE KEY-----", "")
-            key = key.replace("-----END PRIVATE KEY-----", "")
-            key = key.replace(" ", "")
-            key = key.replace("\n", "")
+        try:
+            firebase_secrets = st.secrets["firebase"]
+            for field in required_fields:
+                if field not in firebase_secrets:
+                    raise KeyError(f"Champ requis manquant dans les secrets Firebase: {field}")
             
-            # Format the key properly with markers and newlines
-            cred_dict["private_key"] = f"-----BEGIN PRIVATE KEY-----\n{key}\n-----END PRIVATE KEY-----\n"
-        
-        # Créer un fichier temporaire contenant les credentials
-        with tempfile.NamedTemporaryFile(delete=False, mode="w", suffix=".json") as temp_cred_file:
-            json.dump(cred_dict, temp_cred_file)
-            temp_cred_path = temp_cred_file.name
-
-        # Charger les credentials depuis le fichier temporaire
-        cred = credentials.Certificate(temp_cred_path)
-        
-        # Initialiser Firebase
-        firebase_admin.initialize_app(cred)
-
-    # Retourner le client Firestore
-    return firestore.client()
+            # Créer un fichier temporaire pour stocker les credentials
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.json') as temp_file:
+                json.dump(firebase_secrets, temp_file)
+                temp_file_path = temp_file.name
+            
+            # Initialiser Firebase avec le fichier de credentials temporaire
+            cred = credentials.Certificate(temp_file_path)
+            firebase_admin.initialize_app(cred)
+            
+            # Retourner l'instance Firestore
+            return firestore.client()
+            
         except Exception as e:
-            print(f"Erreur lors de la lecture des documents existants: {str(e)}")
-            return False
+            raise Exception(f"Erreur lors de l'initialisation de Firebase: {str(e)}")
+    
+    # Si Firebase est déjà initialisé, retourner simplement l'instance Firestore
+    return firestore.client()
+
+def update_firestore(collection_name, df):
+    try:
+        # Récupérer la collection Firestore
+        collection_ref = initialize_firebase().collection(collection_name)
+        
+        # Récupérer les documents existants dans la collection
+        existing_docs = {doc.id: doc for doc in collection_ref.stream()}
         
         # Mettre à jour ou ajouter les nouvelles données
         updates_count = 0
