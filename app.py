@@ -189,215 +189,156 @@ elif menu == "Tous les joueurs":
     odds_df = load_data_from_firestore('cotes_joueurs_database', odds_columns)
     
     if stats_df is not None and odds_df is not None:
-        # Conversion des colonnes en types numériques
-        stats_df["G"] = pd.to_numeric(stats_df["G"], errors='coerce')
+        # Fusionner les données
+        merged_df = fusionner_donnees_par_prenom_nom(stats_df, odds_df)
         
-        # Conversion des cotes en nombres flottants
-        odds_df["Cote"] = pd.to_numeric(odds_df["Cote"], errors='coerce')
-        
-        # Fusion des données
-        merged_df = pd.merge(stats_df, odds_df[["Prénom", "Nom", "Cote"]], 
-                           on=["Prénom", "Nom"], how="outer")
-        
-        # Remplacement des NaN par 0 pour les buts et 999 pour les cotes
-        merged_df["G"] = merged_df["G"].fillna(0)
-        merged_df["Cote"] = merged_df["Cote"].fillna(999)
-        
-        # Conversion de la colonne Team en chaînes et remplacement des valeurs manquantes
-        merged_df["Team"] = merged_df["Team"].astype(str)
-        merged_df.loc[merged_df["Team"].isin(["nan", "None", ""]), "Team"] = "Non assigné"
-        
-        # Conversion de la colonne Pos en chaînes et remplacement des valeurs manquantes
-        merged_df["Pos"] = merged_df["Pos"].astype(str)
-        merged_df.loc[merged_df["Pos"].isin(["nan", "None", ""]), "Pos"] = "Non assigné"
-        
-        # Filtres
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.write("Équipes")
-            # Liste des équipes avec cases à cocher
-            valid_teams = sorted([str(team) for team in merged_df["Team"].unique() 
-                                if str(team) not in ["nan", "None", "", "Non assigné"]])
+        if merged_df is not None:
+            # Convertir les colonnes en numérique
+            merged_df["Cote"] = pd.to_numeric(merged_df["Cote"], errors='coerce')
+            merged_df["G"] = pd.to_numeric(merged_df["G"], errors='coerce')
             
-            # Boutons pour tout sélectionner/désélectionner
-            col1_1, col1_2 = st.columns(2)
-            with col1_1:
-                if st.button("Tout sélectionner", key="select_all_teams"):
+            # Remplacer les NaN par des valeurs par défaut
+            merged_df["Cote"] = merged_df["Cote"].fillna(999)
+            merged_df["G"] = merged_df["G"].fillna(0)
+            
+            # Filtres pour les données
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                # Filtre de cote minimum
+                max_cote = min(merged_df[merged_df["Cote"] < 999]["Cote"].max(), 10.0)  # Limiter à 10.0 maximum
+                min_cote = st.number_input("Cote minimum", 
+                                         min_value=1.0,
+                                         max_value=float(max_cote),
+                                         value=1.0,
+                                         step=0.1,
+                                         key="all_players_min_cote")
+            
+            with col2:
+                # Filtre de buts minimum
+                max_buts = int(merged_df["G"].max())
+                min_buts = st.number_input("Nombre minimum de buts", 
+                                         min_value=0,
+                                         max_value=max_buts,
+                                         value=0,
+                                         key="all_players_min_buts")
+            
+            with col3:
+                # Filtre pour exclure les cotes manquantes
+                show_missing_odds = st.checkbox("Afficher les joueurs sans cote", 
+                                             value=False,
+                                             key="all_players_show_missing")
+            
+            # Créer une copie pour les filtres
+            filtered_df = merged_df.copy()
+            
+            # Appliquer les filtres
+            if not show_missing_odds:
+                filtered_df = filtered_df[filtered_df["Cote"] < 999]  # Exclure les joueurs sans cote
+            
+            filtered_df = filtered_df[
+                (filtered_df["Cote"] >= min_cote) & 
+                (filtered_df["G"] >= min_buts)
+            ]
+            
+            # Expander pour les filtres d'équipe
+            with st.expander("🏒 Filtrer par équipe"):
+                # Obtenir toutes les équipes valides
+                valid_teams = sorted([str(team) for team in filtered_df["Team"].unique() 
+                                   if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
+                
+                # Boutons pour tout sélectionner/désélectionner
+                col1_1, col1_2 = st.columns(2)
+                with col1_1:
+                    if st.button("Tout sélectionner", key="all_players_select_all_teams"):
+                        st.session_state.selected_teams = valid_teams
+                with col1_2:
+                    if st.button("Tout désélectionner", key="all_players_deselect_all_teams"):
+                        st.session_state.selected_teams = []
+                
+                # Initialiser la session state si nécessaire
+                if 'selected_teams' not in st.session_state:
                     st.session_state.selected_teams = valid_teams
-            with col1_2:
-                if st.button("Tout désélectionner", key="deselect_all_teams"):
-                    st.session_state.selected_teams = []
+                
+                # Créer les cases à cocher
+                selected_teams = []
+                for team in valid_teams:
+                    if st.checkbox(team, value=team in st.session_state.selected_teams, key=f"all_players_team_{team}"):
+                        selected_teams.append(team)
+                st.session_state.selected_teams = selected_teams
             
-            # Initialiser la session state si nécessaire
-            if 'selected_teams' not in st.session_state:
-                st.session_state.selected_teams = valid_teams
-            
-            # Créer les cases à cocher
-            selected_teams = []
-            for team in valid_teams:
-                if st.checkbox(team, value=team in st.session_state.selected_teams, key=f"team_{team}"):
-                    selected_teams.append(team)
-            st.session_state.selected_teams = selected_teams
-            
-        with col2:
-            st.write("Positions")
-            # Liste des positions avec cases à cocher
-            valid_positions = sorted([str(pos) for pos in merged_df["Pos"].unique() 
-                                   if str(pos) not in ["nan", "None", "", "Non assigné"]])
-            
-            # Boutons pour tout sélectionner/désélectionner
-            col2_1, col2_2 = st.columns(2)
-            with col2_1:
-                if st.button("Tout sélectionner", key="select_all_pos"):
+            # Expander pour les filtres de position
+            with st.expander("👥 Filtrer par position"):
+                # Obtenir toutes les positions valides
+                valid_positions = sorted([str(pos) for pos in filtered_df["Pos"].unique() 
+                                       if str(pos) not in ["nan", "None", "", "Non assigné"]])
+                
+                # Boutons pour tout sélectionner/désélectionner
+                col2_1, col2_2 = st.columns(2)
+                with col2_1:
+                    if st.button("Tout sélectionner", key="all_players_select_all_pos"):
+                        st.session_state.selected_positions = valid_positions
+                with col2_2:
+                    if st.button("Tout désélectionner", key="all_players_deselect_all_pos"):
+                        st.session_state.selected_positions = []
+                
+                # Initialiser la session state si nécessaire
+                if 'selected_positions' not in st.session_state:
                     st.session_state.selected_positions = valid_positions
-            with col2_2:
-                if st.button("Tout désélectionner", key="deselect_all_pos"):
-                    st.session_state.selected_positions = []
+                
+                # Créer les cases à cocher
+                selected_positions = []
+                for pos in valid_positions:
+                    if st.checkbox(pos, value=pos in st.session_state.selected_positions, key=f"all_players_pos_{pos}"):
+                        selected_positions.append(pos)
+                st.session_state.selected_positions = selected_positions
             
-            # Initialiser la session state si nécessaire
-            if 'selected_positions' not in st.session_state:
-                st.session_state.selected_positions = valid_positions
+            # Appliquer les filtres d'équipe et de position
+            if selected_teams:
+                filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
+            if selected_positions:
+                filtered_df = filtered_df[filtered_df["Pos"].isin(selected_positions)]
             
-            # Créer les cases à cocher
-            selected_positions = []
-            for pos in valid_positions:
-                if st.checkbox(pos, value=pos in st.session_state.selected_positions, key=f"pos_{pos}"):
-                    selected_positions.append(pos)
-            st.session_state.selected_positions = selected_positions
+            # Afficher le nombre total de joueurs
+            st.write(f"Nombre total de joueurs : {len(filtered_df)}")
             
-        with col3:
-            min_cote = st.number_input("Cote minimum", 
-                                     min_value=1.0,
-                                     max_value=float(merged_df["Cote"].max()),
-                                     value=1.0,
-                                     step=0.1)
-        with col4:
-            min_buts = st.number_input("Nombre minimum de buts", 
-                                     min_value=0,
-                                     max_value=int(merged_df["G"].max()),
-                                     value=0)
-        
-        # Application des filtres
-        filtered_df = merged_df[
-            (merged_df["Cote"] >= min_cote) & 
-            (merged_df["G"] >= min_buts) &
-            (merged_df["Cote"] < 999)  # Exclure les joueurs sans cote
-        ]
-        
-        # Filtre par équipes sélectionnées
-        if selected_teams:
-            filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
-            
-        # Filtre par position(s)
-        if selected_positions:
-            filtered_df = filtered_df[filtered_df["Pos"].isin(selected_positions)]
-        
-        # Tri des colonnes et remplacement des valeurs manquantes
-        display_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "Cote"]
-        filtered_df = filtered_df[display_columns].copy()
-        
-        # Remplir les valeurs manquantes pour l'affichage
-        for col in display_columns:
-            if col not in ["G", "Cote"]:  # Ne pas remplir les colonnes numériques
-                filtered_df[col] = filtered_df[col].fillna("Non disponible")
-        
-        # Tri final
-        filtered_df = filtered_df.sort_values(["Team", "Nom"])
-        
-        # Statistiques par équipe
-        if len(filtered_df) > 0:
-            st.write(f"Nombre de joueurs affichés : {len(filtered_df)}")
-            
-            # Statistiques agrégées par équipe
-            team_stats = filtered_df.groupby("Team").agg({
-                "G": "sum",
-                "Cote": "mean"
-            }).round(2)
-            
-            # Afficher les statistiques par équipe dans un expander
-            with st.expander("Statistiques par équipe"):
-                st.dataframe(team_stats, use_container_width=True)
-            
-            # Afficher le tableau principal
-            st.dataframe(filtered_df, use_container_width=True)
+            # Afficher les données
+            if not filtered_df.empty:
+                st.dataframe(filtered_df[["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI", "Cote"]], 
+                           use_container_width=True)
+            else:
+                st.warning("Aucun joueur ne correspond aux critères sélectionnés")
         else:
-            st.warning("Aucun joueur ne correspond aux critères sélectionnés.")
+            st.error("Erreur lors de la fusion des données")
     else:
-        st.warning("Veuillez d'abord récupérer les statistiques et les cotes des joueurs.")
-
-# Options d'exportation des données localement
-if st.sidebar.button("Télécharger les données", key="download_data"):
-    if st.session_state.stats is not None:
-        st.download_button(
-            label="Télécharger les Statistiques des Joueurs en CSV",
-            data=st.session_state.stats.to_csv(index=False).encode('utf-8'),
-            file_name='stats_joueurs.csv',
-            mime='text/csv'
-        )
-    if st.session_state.odds_data is not None:
-        st.download_button(
-            label="Télécharger les Cotes des Matchs en CSV",
-            data=st.session_state.odds_data.to_csv(index=False).encode('utf-8'),
-            file_name='cotes_matchs.csv',
-            mime='text/csv'
-        )
-    if st.session_state.merged_data is not None:
-        st.download_button(
-            label="Télécharger les Données Fusionnées en CSV",
-            data=st.session_state.merged_data.to_csv(index=False).encode('utf-8'),
-            file_name='donnees_fusionnees.csv',
-            mime='text/csv'
-        )
-                                     value=0)
-        
-        # Application des filtres
-        filtered_df = merged_df[
-            (merged_df["Cote"] >= min_cote) & 
-            (merged_df["G"] >= min_buts) &
-            (merged_df["Cote"] < 999)  # Exclure les joueurs sans cote
-        ]
-        
-        # Filtre par équipes sélectionnées
-        if selected_teams:
-            filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
+        st.error("Erreur lors du chargement des données")
+    
+    # Bouton d'actualisation avec spinner
+    if st.button("🔄 Actualiser avec les dernières données", key="all_players_refresh"):
+        with st.spinner('Récupération des données...'):
+            stats_df = load_data_from_firestore('stats_joueurs_database', stats_columns)
+            odds_df = load_data_from_firestore('cotes_joueurs_database', odds_columns)
             
-        # Filtre par position(s)
-        if selected_positions:
-            filtered_df = filtered_df[filtered_df["Pos"].isin(selected_positions)]
-        
-        # Tri des colonnes et remplacement des valeurs manquantes
-        display_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "Cote"]
-        filtered_df = filtered_df[display_columns].copy()
-        
-        # Remplir les valeurs manquantes pour l'affichage
-        for col in display_columns:
-            if col not in ["G", "Cote"]:  # Ne pas remplir les colonnes numériques
-                filtered_df[col] = filtered_df[col].fillna("Non disponible")
-        
-        # Tri final
-        filtered_df = filtered_df.sort_values(["Team", "Nom"])
-        
-        # Statistiques par équipe
-        if len(filtered_df) > 0:
-            st.write(f"Nombre de joueurs affichés : {len(filtered_df)}")
-            
-            # Statistiques agrégées par équipe
-            team_stats = filtered_df.groupby("Team").agg({
-                "G": "sum",
-                "Cote": "mean"
-            }).round(2)
-            
-            # Afficher les statistiques par équipe dans un expander
-            with st.expander("Statistiques par équipe"):
-                st.dataframe(team_stats, use_container_width=True)
-            
-            # Afficher le tableau principal
-            st.dataframe(filtered_df, use_container_width=True)
-        else:
-            st.warning("Aucun joueur ne correspond aux critères sélectionnés.")
-    else:
-        st.warning("Veuillez d'abord récupérer les statistiques et les cotes des joueurs.")
+            if stats_df is not None and odds_df is not None:
+                # Fusionner les données
+                merged_df = fusionner_donnees_par_prenom_nom(stats_df, odds_df)
+                
+                if merged_df is not None:
+                    # Convertir les colonnes en numérique
+                    merged_df["Cote"] = pd.to_numeric(merged_df["Cote"], errors='coerce')
+                    merged_df["G"] = pd.to_numeric(merged_df["G"], errors='coerce')
+                    
+                    # Remplacer les NaN par des valeurs par défaut
+                    merged_df["Cote"] = merged_df["Cote"].fillna(999)
+                    merged_df["G"] = merged_df["G"].fillna(0)
+                    
+                    # Afficher les données
+                    st.dataframe(merged_df[["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI", "Cote"]], 
+                               use_container_width=True)
+                else:
+                    st.error("Erreur lors de la fusion des données")
+            else:
+                st.error("Erreur lors du chargement des données")
 
 # Options d'exportation des données localement
 if st.sidebar.button("Télécharger les données", key="download_data"):
