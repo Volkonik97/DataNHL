@@ -180,6 +180,15 @@ elif menu == "Stats + Cotes":
 elif menu == "Tous les joueurs":
     st.header("Tous les joueurs")
     
+    # Bouton d'actualisation avec spinner
+    if st.button("🔄 Actualiser avec les dernières données", key="all_players_refresh"):
+        with st.spinner('Récupération des données...'):
+            # Forcer le rafraîchissement des données
+            if 'stats_joueurs' in st.session_state:
+                del st.session_state['stats_joueurs']
+            if 'cotes_joueurs' in st.session_state:
+                del st.session_state['cotes_joueurs']
+    
     # Chargement des données
     stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]
     odds_columns = ["Prénom", "Nom", "Team", "Cote"]
@@ -249,22 +258,28 @@ elif menu == "Tous les joueurs":
                 # Boutons pour tout sélectionner/désélectionner
                 col1_1, col1_2 = st.columns(2)
                 with col1_1:
-                    if st.button("Tout sélectionner", key="all_players_select_all_teams"):
+                    if st.button("Tout sélectionner", key="select_all_teams"):
                         st.session_state.selected_teams = valid_teams
                 with col1_2:
-                    if st.button("Tout désélectionner", key="all_players_deselect_all_teams"):
+                    if st.button("Tout désélectionner", key="deselect_all_teams"):
                         st.session_state.selected_teams = []
                 
-                # Initialiser la session state si nécessaire
-                if 'selected_teams' not in st.session_state:
+                # Initialiser la liste des équipes sélectionnées si elle n'existe pas
+                if "selected_teams" not in st.session_state:
                     st.session_state.selected_teams = valid_teams
                 
-                # Créer les cases à cocher
-                selected_teams = []
-                for team in valid_teams:
-                    if st.checkbox(team, value=team in st.session_state.selected_teams, key=f"all_players_team_{team}"):
-                        selected_teams.append(team)
+                # Afficher les checkboxes pour chaque équipe
+                selected_teams = st.multiselect(
+                    "Sélectionner les équipes",
+                    options=valid_teams,
+                    default=st.session_state.selected_teams,
+                    key="teams_multiselect"
+                )
                 st.session_state.selected_teams = selected_teams
+            
+            # Filtrer par équipe
+            if selected_teams:
+                filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
             
             # Expander pour les filtres de position
             with st.expander("👥 Filtrer par position"):
@@ -275,26 +290,26 @@ elif menu == "Tous les joueurs":
                 # Boutons pour tout sélectionner/désélectionner
                 col2_1, col2_2 = st.columns(2)
                 with col2_1:
-                    if st.button("Tout sélectionner", key="all_players_select_all_pos"):
+                    if st.button("Tout sélectionner", key="select_all_positions"):
                         st.session_state.selected_positions = valid_positions
                 with col2_2:
-                    if st.button("Tout désélectionner", key="all_players_deselect_all_pos"):
+                    if st.button("Tout désélectionner", key="deselect_all_positions"):
                         st.session_state.selected_positions = []
                 
-                # Initialiser la session state si nécessaire
-                if 'selected_positions' not in st.session_state:
+                # Initialiser la liste des positions sélectionnées si elle n'existe pas
+                if "selected_positions" not in st.session_state:
                     st.session_state.selected_positions = valid_positions
                 
-                # Créer les cases à cocher
-                selected_positions = []
-                for pos in valid_positions:
-                    if st.checkbox(pos, value=pos in st.session_state.selected_positions, key=f"all_players_pos_{pos}"):
-                        selected_positions.append(pos)
+                # Afficher les checkboxes pour chaque position
+                selected_positions = st.multiselect(
+                    "Sélectionner les positions",
+                    options=valid_positions,
+                    default=st.session_state.selected_positions,
+                    key="positions_multiselect"
+                )
                 st.session_state.selected_positions = selected_positions
             
-            # Appliquer les filtres d'équipe et de position
-            if selected_teams:
-                filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
+            # Filtrer par position
             if selected_positions:
                 filtered_df = filtered_df[filtered_df["Pos"].isin(selected_positions)]
             
@@ -311,33 +326,6 @@ elif menu == "Tous les joueurs":
             st.error("Erreur lors de la fusion des données")
     else:
         st.error("Erreur lors du chargement des données")
-    
-    # Bouton d'actualisation avec spinner
-    if st.button("🔄 Actualiser avec les dernières données", key="all_players_refresh"):
-        with st.spinner('Récupération des données...'):
-            stats_df = load_data_from_firestore('stats_joueurs_database', stats_columns)
-            odds_df = load_data_from_firestore('cotes_joueurs_database', odds_columns)
-            
-            if stats_df is not None and odds_df is not None:
-                # Fusionner les données
-                merged_df = fusionner_donnees_par_prenom_nom(stats_df, odds_df)
-                
-                if merged_df is not None:
-                    # Convertir les colonnes en numérique
-                    merged_df["Cote"] = pd.to_numeric(merged_df["Cote"], errors='coerce')
-                    merged_df["G"] = pd.to_numeric(merged_df["G"], errors='coerce')
-                    
-                    # Remplacer les NaN par des valeurs par défaut
-                    merged_df["Cote"] = merged_df["Cote"].fillna(999)
-                    merged_df["G"] = merged_df["G"].fillna(0)
-                    
-                    # Afficher les données
-                    st.dataframe(merged_df[["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI", "Cote"]], 
-                               use_container_width=True)
-                else:
-                    st.error("Erreur lors de la fusion des données")
-            else:
-                st.error("Erreur lors du chargement des données")
 
 # Options d'exportation des données localement
 if st.sidebar.button("Télécharger les données", key="download_data"):
