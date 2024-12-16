@@ -214,15 +214,27 @@ elif menu == "Tous les joueurs":
             merged_df["Cote"] = merged_df["Cote"].fillna(999)
             merged_df["G"] = merged_df["G"].fillna(0)
             
+            # Obtenir toutes les équipes et positions valides depuis les données originales
+            all_valid_teams = sorted([str(team) for team in merged_df["Team"].unique() 
+                                    if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
+            all_valid_positions = sorted([str(pos) for pos in merged_df["Pos"].unique() 
+                                       if str(pos) not in ["nan", "None", "", "Non assigné"]])
+            
+            # Initialiser les sélections si nécessaire
+            if "selected_teams" not in st.session_state:
+                st.session_state.selected_teams = all_valid_teams.copy()
+            if "selected_positions" not in st.session_state:
+                st.session_state.selected_positions = all_valid_positions.copy()
+            
             # Créer une copie pour les filtres
             filtered_df = merged_df.copy()
             
-            # Filtres pour les données
+            # Filtres numériques
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 # Filtre de cote minimum
-                max_cote = min(filtered_df[filtered_df["Cote"] < 999]["Cote"].max(), 10.0)  # Limiter à 10.0 maximum
+                max_cote = min(filtered_df[filtered_df["Cote"] < 999]["Cote"].max(), 10.0)
                 min_cote = st.number_input("Cote minimum", 
                                          min_value=1.0,
                                          max_value=float(max_cote),
@@ -245,52 +257,25 @@ elif menu == "Tous les joueurs":
                                              value=False,
                                              key="all_players_show_missing")
             
-            # Appliquer les filtres de base
-            if not show_missing_odds:
-                filtered_df = filtered_df[filtered_df["Cote"] < 999]  # Exclure les joueurs sans cote
-            
-            filtered_df = filtered_df[
-                (filtered_df["Cote"] >= min_cote) & 
-                (filtered_df["G"] >= min_buts)
-            ]
-            
-            # Obtenir les équipes valides
-            valid_teams = sorted([str(team) for team in filtered_df["Team"].unique() 
-                               if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
-            
             # Expander pour les filtres d'équipe
             with st.expander("🏒 Filtrer par équipe"):
                 # Boutons pour tout sélectionner/désélectionner
                 col1_1, col1_2 = st.columns(2)
                 with col1_1:
                     if st.button("Tout sélectionner", key="select_all_teams"):
-                        st.session_state.selected_teams = valid_teams
+                        st.session_state.selected_teams = all_valid_teams.copy()
                 with col1_2:
                     if st.button("Tout désélectionner", key="deselect_all_teams"):
                         st.session_state.selected_teams = []
                 
-                # Initialiser ou mettre à jour la liste des équipes sélectionnées
-                if "selected_teams" not in st.session_state:
-                    st.session_state.selected_teams = valid_teams
-                # S'assurer que selected_teams ne contient que des équipes valides
-                st.session_state.selected_teams = [team for team in st.session_state.selected_teams if team in valid_teams]
-                
-                # Afficher le multiselect pour les équipes
+                # Multiselect pour les équipes
                 selected_teams = st.multiselect(
                     "Sélectionner les équipes",
-                    options=valid_teams,
+                    options=all_valid_teams,
                     default=st.session_state.selected_teams,
                     key="teams_multiselect"
                 )
                 st.session_state.selected_teams = selected_teams
-            
-            # Filtrer par équipe
-            if selected_teams:
-                filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
-            
-            # Obtenir les positions valides
-            valid_positions = sorted([str(pos) for pos in filtered_df["Pos"].unique() 
-                                   if str(pos) not in ["nan", "None", "", "Non assigné"]])
             
             # Expander pour les filtres de position
             with st.expander("👥 Filtrer par position"):
@@ -298,27 +283,32 @@ elif menu == "Tous les joueurs":
                 col2_1, col2_2 = st.columns(2)
                 with col2_1:
                     if st.button("Tout sélectionner", key="select_all_positions"):
-                        st.session_state.selected_positions = valid_positions
+                        st.session_state.selected_positions = all_valid_positions.copy()
                 with col2_2:
                     if st.button("Tout désélectionner", key="deselect_all_positions"):
                         st.session_state.selected_positions = []
                 
-                # Initialiser ou mettre à jour la liste des positions sélectionnées
-                if "selected_positions" not in st.session_state:
-                    st.session_state.selected_positions = valid_positions
-                # S'assurer que selected_positions ne contient que des positions valides
-                st.session_state.selected_positions = [pos for pos in st.session_state.selected_positions if pos in valid_positions]
-                
-                # Afficher le multiselect pour les positions
+                # Multiselect pour les positions
                 selected_positions = st.multiselect(
                     "Sélectionner les positions",
-                    options=valid_positions,
+                    options=all_valid_positions,
                     default=st.session_state.selected_positions,
                     key="positions_multiselect"
                 )
                 st.session_state.selected_positions = selected_positions
             
-            # Filtrer par position
+            # Appliquer tous les filtres
+            if not show_missing_odds:
+                filtered_df = filtered_df[filtered_df["Cote"] < 999]
+            
+            filtered_df = filtered_df[
+                (filtered_df["Cote"] >= min_cote) & 
+                (filtered_df["G"] >= min_buts)
+            ]
+            
+            if selected_teams:
+                filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
+            
             if selected_positions:
                 filtered_df = filtered_df[filtered_df["Pos"].isin(selected_positions)]
             
