@@ -188,6 +188,11 @@ elif menu == "Tous les joueurs":
                 del st.session_state['stats_joueurs']
             if 'cotes_joueurs' in st.session_state:
                 del st.session_state['cotes_joueurs']
+            # Réinitialiser les sélections
+            if 'selected_teams' in st.session_state:
+                del st.session_state['selected_teams']
+            if 'selected_positions' in st.session_state:
+                del st.session_state['selected_positions']
     
     # Chargement des données
     stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]
@@ -209,12 +214,15 @@ elif menu == "Tous les joueurs":
             merged_df["Cote"] = merged_df["Cote"].fillna(999)
             merged_df["G"] = merged_df["G"].fillna(0)
             
+            # Créer une copie pour les filtres
+            filtered_df = merged_df.copy()
+            
             # Filtres pour les données
             col1, col2, col3 = st.columns(3)
             
             with col1:
                 # Filtre de cote minimum
-                max_cote = min(merged_df[merged_df["Cote"] < 999]["Cote"].max(), 10.0)  # Limiter à 10.0 maximum
+                max_cote = min(filtered_df[filtered_df["Cote"] < 999]["Cote"].max(), 10.0)  # Limiter à 10.0 maximum
                 min_cote = st.number_input("Cote minimum", 
                                          min_value=1.0,
                                          max_value=float(max_cote),
@@ -224,7 +232,7 @@ elif menu == "Tous les joueurs":
             
             with col2:
                 # Filtre de buts minimum
-                max_buts = int(merged_df["G"].max())
+                max_buts = int(filtered_df["G"].max())
                 min_buts = st.number_input("Nombre minimum de buts", 
                                          min_value=0,
                                          max_value=max_buts,
@@ -237,10 +245,7 @@ elif menu == "Tous les joueurs":
                                              value=False,
                                              key="all_players_show_missing")
             
-            # Créer une copie pour les filtres
-            filtered_df = merged_df.copy()
-            
-            # Appliquer les filtres
+            # Appliquer les filtres de base
             if not show_missing_odds:
                 filtered_df = filtered_df[filtered_df["Cote"] < 999]  # Exclure les joueurs sans cote
             
@@ -249,12 +254,12 @@ elif menu == "Tous les joueurs":
                 (filtered_df["G"] >= min_buts)
             ]
             
+            # Obtenir les équipes valides
+            valid_teams = sorted([str(team) for team in filtered_df["Team"].unique() 
+                               if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
+            
             # Expander pour les filtres d'équipe
             with st.expander("🏒 Filtrer par équipe"):
-                # Obtenir toutes les équipes valides
-                valid_teams = sorted([str(team) for team in filtered_df["Team"].unique() 
-                                   if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
-                
                 # Boutons pour tout sélectionner/désélectionner
                 col1_1, col1_2 = st.columns(2)
                 with col1_1:
@@ -264,11 +269,13 @@ elif menu == "Tous les joueurs":
                     if st.button("Tout désélectionner", key="deselect_all_teams"):
                         st.session_state.selected_teams = []
                 
-                # Initialiser la liste des équipes sélectionnées si elle n'existe pas
+                # Initialiser ou mettre à jour la liste des équipes sélectionnées
                 if "selected_teams" not in st.session_state:
                     st.session_state.selected_teams = valid_teams
+                # S'assurer que selected_teams ne contient que des équipes valides
+                st.session_state.selected_teams = [team for team in st.session_state.selected_teams if team in valid_teams]
                 
-                # Afficher les checkboxes pour chaque équipe
+                # Afficher le multiselect pour les équipes
                 selected_teams = st.multiselect(
                     "Sélectionner les équipes",
                     options=valid_teams,
@@ -281,12 +288,12 @@ elif menu == "Tous les joueurs":
             if selected_teams:
                 filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
             
+            # Obtenir les positions valides
+            valid_positions = sorted([str(pos) for pos in filtered_df["Pos"].unique() 
+                                   if str(pos) not in ["nan", "None", "", "Non assigné"]])
+            
             # Expander pour les filtres de position
             with st.expander("👥 Filtrer par position"):
-                # Obtenir toutes les positions valides
-                valid_positions = sorted([str(pos) for pos in filtered_df["Pos"].unique() 
-                                       if str(pos) not in ["nan", "None", "", "Non assigné"]])
-                
                 # Boutons pour tout sélectionner/désélectionner
                 col2_1, col2_2 = st.columns(2)
                 with col2_1:
@@ -296,11 +303,13 @@ elif menu == "Tous les joueurs":
                     if st.button("Tout désélectionner", key="deselect_all_positions"):
                         st.session_state.selected_positions = []
                 
-                # Initialiser la liste des positions sélectionnées si elle n'existe pas
+                # Initialiser ou mettre à jour la liste des positions sélectionnées
                 if "selected_positions" not in st.session_state:
                     st.session_state.selected_positions = valid_positions
+                # S'assurer que selected_positions ne contient que des positions valides
+                st.session_state.selected_positions = [pos for pos in st.session_state.selected_positions if pos in valid_positions]
                 
-                # Afficher les checkboxes pour chaque position
+                # Afficher le multiselect pour les positions
                 selected_positions = st.multiselect(
                     "Sélectionner les positions",
                     options=valid_positions,
