@@ -25,24 +25,46 @@ def should_refresh_cache(last_update_time):
 def load_data_from_firestore(collection_name, expected_columns=None):
     if not db:
         return None
-        
-    if collection_name not in st.session_state:
-        st.session_state[collection_name] = {'data': None, 'last_update': None}
-    
-    if not should_refresh_cache(st.session_state[collection_name]['last_update']):
-        return st.session_state[collection_name]['data']
     
     try:
+        # Récupérer tous les documents
         docs = db.collection(collection_name).stream()
-        df = pd.DataFrame([doc.to_dict() for doc in docs]) if docs else None
+        data = {}
         
-        if df is not None and not df.empty and expected_columns:
+        # Créer un dictionnaire avec les données les plus récentes pour chaque joueur
+        for doc in docs:
+            doc_dict = doc.to_dict()
+            if 'Prénom' in doc_dict and 'Nom' in doc_dict:
+                key = f"{doc_dict['Prénom']}_{doc_dict['Nom']}"
+                # Si le joueur existe déjà, comparer les dates de mise à jour si disponibles
+                if key in data:
+                    # Pour l'instant, on garde la première entrée (à améliorer avec des timestamps)
+                    continue
+                data[key] = doc_dict
+        
+        # Convertir le dictionnaire en DataFrame
+        df = pd.DataFrame(list(data.values()))
+        
+        # Si le DataFrame est vide, retourner None
+        if df.empty:
+            return None
+        
+        # Réorganiser les colonnes si nécessaire
+        if expected_columns:
             df = df.reindex(columns=expected_columns)
         
-        st.session_state[collection_name]['data'] = df
-        st.session_state[collection_name]['last_update'] = datetime.now()
+        # Convertir les colonnes numériques
+        numeric_columns = ['GP', 'G', 'A', 'SOG', 'SPCT', 'TSA']
+        for col in numeric_columns:
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+        
+        # Trier le DataFrame
+        if 'Team' in df.columns and 'Nom' in df.columns:
+            df = df.sort_values(['Team', 'Nom'])
         
         return df
+        
     except Exception as e:
         st.error(f"Erreur lors du chargement des données depuis Firebase: {str(e)}")
         return None
