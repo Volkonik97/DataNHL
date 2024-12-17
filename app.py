@@ -189,10 +189,8 @@ elif menu == "Tous les joueurs":
             if 'cotes_joueurs' in st.session_state:
                 del st.session_state['cotes_joueurs']
             # Réinitialiser les sélections
-            if 'selected_teams' in st.session_state:
-                del st.session_state['selected_teams']
-            if 'selected_positions' in st.session_state:
-                del st.session_state['selected_positions']
+            st.session_state.selected_teams = []
+            st.session_state.selected_positions = []
     
     # Chargement des données
     stats_columns = ["Prénom", "Nom", "Team", "Pos", "GP", "G", "A", "SOG", "SPCT", "TSA", "ATOI"]
@@ -219,12 +217,6 @@ elif menu == "Tous les joueurs":
                                     if str(team) not in ["nan", "None", "", "Non assigné", "0"]])
             all_valid_positions = sorted([str(pos) for pos in merged_df["Pos"].unique() 
                                        if str(pos) not in ["nan", "None", "", "Non assigné"]])
-            
-            # Initialiser les sélections si nécessaire
-            if "selected_teams" not in st.session_state:
-                st.session_state.selected_teams = all_valid_teams.copy()
-            if "selected_positions" not in st.session_state:
-                st.session_state.selected_positions = all_valid_positions.copy()
             
             # Créer une copie pour les filtres
             filtered_df = merged_df.copy()
@@ -261,6 +253,11 @@ elif menu == "Tous les joueurs":
             with st.expander("🏒 Filtrer par équipe"):
                 # Boutons pour tout sélectionner/désélectionner
                 col1_1, col1_2 = st.columns(2)
+                
+                # Initialiser la session state pour les équipes si nécessaire
+                if "selected_teams" not in st.session_state:
+                    st.session_state.selected_teams = all_valid_teams.copy()
+                
                 with col1_1:
                     if st.button("Tout sélectionner", key="select_all_teams"):
                         st.session_state.selected_teams = all_valid_teams.copy()
@@ -275,12 +272,20 @@ elif menu == "Tous les joueurs":
                     default=st.session_state.selected_teams,
                     key="teams_multiselect"
                 )
-                st.session_state.selected_teams = selected_teams
+                
+                # Mettre à jour la session state uniquement si la sélection a changé
+                if selected_teams != st.session_state.selected_teams:
+                    st.session_state.selected_teams = selected_teams.copy()
             
             # Expander pour les filtres de position
             with st.expander("👥 Filtrer par position"):
                 # Boutons pour tout sélectionner/désélectionner
                 col2_1, col2_2 = st.columns(2)
+                
+                # Initialiser la session state pour les positions si nécessaire
+                if "selected_positions" not in st.session_state:
+                    st.session_state.selected_positions = all_valid_positions.copy()
+                
                 with col2_1:
                     if st.button("Tout sélectionner", key="select_all_positions"):
                         st.session_state.selected_positions = all_valid_positions.copy()
@@ -295,7 +300,10 @@ elif menu == "Tous les joueurs":
                     default=st.session_state.selected_positions,
                     key="positions_multiselect"
                 )
-                st.session_state.selected_positions = selected_positions
+                
+                # Mettre à jour la session state uniquement si la sélection a changé
+                if selected_positions != st.session_state.selected_positions:
+                    st.session_state.selected_positions = selected_positions.copy()
             
             # Appliquer tous les filtres
             if not show_missing_odds:
@@ -306,11 +314,12 @@ elif menu == "Tous les joueurs":
                 (filtered_df["G"] >= min_buts)
             ]
             
-            if selected_teams:
-                filtered_df = filtered_df[filtered_df["Team"].isin(selected_teams)]
+            # Appliquer les filtres de sélection
+            if st.session_state.selected_teams:
+                filtered_df = filtered_df[filtered_df["Team"].isin(st.session_state.selected_teams)]
             
-            if selected_positions:
-                filtered_df = filtered_df[filtered_df["Pos"].isin(selected_positions)]
+            if st.session_state.selected_positions:
+                filtered_df = filtered_df[filtered_df["Pos"].isin(st.session_state.selected_positions)]
             
             # Afficher le nombre total de joueurs
             st.write(f"Nombre total de joueurs : {len(filtered_df)}")

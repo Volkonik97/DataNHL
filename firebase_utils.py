@@ -42,43 +42,45 @@ def initialize_firebase():
 def update_firestore(collection_name, df):
     try:
         # Récupérer la collection Firestore
-        collection_ref = initialize_firebase().collection(collection_name)
+        db = initialize_firebase()
+        collection_ref = db.collection(collection_name)
         
-        # Récupérer les documents existants dans la collection
-        existing_docs = {doc.id: doc for doc in collection_ref.stream()}
+        # Supprimer tous les documents existants dans la collection
+        batch_size = 500
+        docs = collection_ref.limit(batch_size).stream()
+        deleted = 0
         
-        # Mettre à jour ou ajouter les nouvelles données
-        updates_count = 0
-        for _, row in df.iterrows():
-            try:
-                doc_data = {k: None if pd.isna(v) else v for k, v in row.to_dict().items()}
-                key = f"{doc_data['Prénom']}_{doc_data['Nom']}"
-                
-                if key in existing_docs:
-                    # Mettre à jour le document existant
-                    existing_docs[key].update(doc_data)
-                else:
-                    # Créer un nouveau document
-                    collection_ref.add(doc_data)
-                updates_count += 1
-            except Exception as e:
-                print(f"Erreur lors de la mise à jour/création du document pour {key}: {str(e)}")
-                continue
+        # Supprimer par lots pour éviter les timeouts
+        while docs:
+            batch = db.batch()
+            for doc in docs:
+                batch.delete(doc.reference)
+                deleted += 1
+            batch.commit()
+            docs = collection_ref.limit(batch_size).stream()
         
-        # Supprimer les documents qui n'existent plus dans le DataFrame
-        deletes_count = 0
-        for key, doc_ref in existing_docs.items():
-            try:
-                if key not in [f"{row['Prénom']}_{row['Nom']}" for _, row in df.iterrows()]:
-                    doc_ref.delete()
-                    deletes_count += 1
-            except Exception as e:
-                print(f"Erreur lors de la suppression du document {key}: {str(e)}")
-                continue
+        print(f"Suppression de {deleted} documents existants dans {collection_name}")
         
-        print(f"Mise à jour réussie pour {collection_name}:")
-        print(f"- {updates_count} documents mis à jour/créés")
-        print(f"- {deletes_count} documents supprimés")
+        # Ajouter les nouvelles données par lots
+        batch = db.batch()
+        added = 0
+        for index, row in df.iterrows():
+            doc_data = {k: None if pd.isna(v) else v for k, v in row.to_dict().items()}
+            key = f"{doc_data['Prénom']}_{doc_data['Nom']}"
+            doc_ref = collection_ref.document(key)
+            batch.set(doc_ref, doc_data)
+            added += 1
+            
+            # Commit le batch tous les 500 documents
+            if added % 500 == 0:
+                batch.commit()
+                batch = db.batch()
+        
+        # Commit les documents restants
+        if added % 500 != 0:
+            batch.commit()
+        
+        print(f"Ajout de {added} nouveaux documents dans {collection_name}")
         return True
         
     except Exception as e:
