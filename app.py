@@ -271,61 +271,63 @@ elif menu == "Tous les joueurs":
                                              value=False,
                                              key="all_players_show_missing")
             
+            # Initialiser les sélections si nécessaire
+            if "selected_teams" not in st.session_state:
+                st.session_state.selected_teams = all_valid_teams.copy()
+            if "selected_positions" not in st.session_state:
+                st.session_state.selected_positions = all_valid_positions.copy()
+            
+            # Fonction de callback pour les sélections d'équipes
+            def on_team_selection():
+                st.session_state.selected_teams = st.session_state.teams_multiselect
+            
+            # Fonction de callback pour les sélections de positions
+            def on_position_selection():
+                st.session_state.selected_positions = st.session_state.positions_multiselect
+            
             # Expander pour les filtres d'équipe
             with st.expander("🏒 Filtrer par équipe"):
                 # Boutons pour tout sélectionner/désélectionner
                 col1_1, col1_2 = st.columns(2)
-                
-                # Initialiser la session state pour les équipes si nécessaire
-                if "selected_teams" not in st.session_state:
-                    st.session_state.selected_teams = all_valid_teams.copy()
-                
                 with col1_1:
                     if st.button("Tout sélectionner", key="select_all_teams"):
                         st.session_state.selected_teams = all_valid_teams.copy()
+                        st.session_state.teams_multiselect = all_valid_teams.copy()
                 with col1_2:
                     if st.button("Tout désélectionner", key="deselect_all_teams"):
                         st.session_state.selected_teams = []
+                        st.session_state.teams_multiselect = []
                 
-                # Multiselect pour les équipes
+                # Multiselect pour les équipes avec callback
                 selected_teams = st.multiselect(
                     "Sélectionner les équipes",
                     options=all_valid_teams,
                     default=st.session_state.selected_teams,
-                    key="teams_multiselect"
+                    key="teams_multiselect",
+                    on_change=on_team_selection
                 )
-                
-                # Mettre à jour la session state uniquement si la sélection a changé
-                if selected_teams != st.session_state.selected_teams:
-                    st.session_state.selected_teams = selected_teams.copy()
             
             # Expander pour les filtres de position
             with st.expander("👥 Filtrer par position"):
                 # Boutons pour tout sélectionner/désélectionner
                 col2_1, col2_2 = st.columns(2)
-                
-                # Initialiser la session state pour les positions si nécessaire
-                if "selected_positions" not in st.session_state:
-                    st.session_state.selected_positions = all_valid_positions.copy()
-                
                 with col2_1:
                     if st.button("Tout sélectionner", key="select_all_positions"):
                         st.session_state.selected_positions = all_valid_positions.copy()
+                        st.session_state.positions_multiselect = all_valid_positions.copy()
                 with col2_2:
                     if st.button("Tout désélectionner", key="deselect_all_positions"):
                         st.session_state.selected_positions = []
+                        st.session_state.positions_multiselect = []
                 
-                # Multiselect pour les positions
+                # Multiselect pour les positions avec callback
                 selected_positions = st.multiselect(
                     "Sélectionner les positions",
                     options=all_valid_positions,
                     default=st.session_state.selected_positions,
-                    key="positions_multiselect"
+                    key="positions_multiselect",
+                    on_change=on_position_selection
                 )
-                
-                # Mettre à jour la session state uniquement si la sélection a changé
-                if selected_positions != st.session_state.selected_positions:
-                    st.session_state.selected_positions = selected_positions.copy()
             
             # Appliquer tous les filtres
             if not show_missing_odds:
@@ -336,7 +338,6 @@ elif menu == "Tous les joueurs":
                 (filtered_df["G"] >= min_buts)
             ]
             
-            # Appliquer les filtres de sélection
             if st.session_state.selected_teams:
                 filtered_df = filtered_df[filtered_df["Team"].isin(st.session_state.selected_teams)]
             
