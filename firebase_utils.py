@@ -4,19 +4,30 @@ import firebase_admin
 import tempfile
 import json
 import pandas as pd
+import toml
+import os
 
 def initialize_firebase():
     # Vérifier si Firebase est déjà initialisé
     if not firebase_admin._apps:
-        # Charger les credentials depuis les secrets et s'assurer que tous les champs requis sont présents
-        required_fields = [
-            "type", "project_id", "private_key_id", "private_key",
-            "client_email", "client_id", "auth_uri", "token_uri",
-            "auth_provider_x509_cert_url", "client_x509_cert_url"
-        ]
-        
         try:
-            firebase_secrets = st.secrets["firebase"]
+            # Essayer d'abord de charger depuis un fichier local
+            try:
+                with open('.streamlit/secrets.toml', 'r') as f:
+                    config = toml.load(f)
+                    firebase_secrets = config['firebase_credentials']
+            except Exception as e:
+                st.error(f"Erreur lors de la lecture du fichier secrets.toml local: {str(e)}")
+                # Si la lecture locale échoue, essayer via st.secrets
+                firebase_secrets = st.secrets["firebase_credentials"]
+
+            # Vérifier que tous les champs requis sont présents
+            required_fields = [
+                "type", "project_id", "private_key_id", "private_key",
+                "client_email", "client_id", "auth_uri", "token_uri",
+                "auth_provider_x509_cert_url", "client_x509_cert_url"
+            ]
+            
             for field in required_fields:
                 if field not in firebase_secrets:
                     raise KeyError(f"Champ requis manquant dans les secrets Firebase: {field}")
@@ -30,14 +41,17 @@ def initialize_firebase():
             cred = credentials.Certificate(temp_file_path)
             firebase_admin.initialize_app(cred)
             
-            # Retourner l'instance Firestore
+            # Supprimer le fichier temporaire après utilisation
+            os.unlink(temp_file_path)
+            
             return firestore.client()
             
         except Exception as e:
-            raise Exception(f"Erreur lors de l'initialisation de Firebase: {str(e)}")
-    
-    # Si Firebase est déjà initialisé, retourner simplement l'instance Firestore
-    return firestore.client()
+            st.error(f"Erreur lors de l'initialisation de Firebase: {str(e)}")
+            st.error("Vérifiez que le fichier .streamlit/secrets.toml existe et contient les bonnes informations")
+            return None
+    else:
+        return firestore.client()
 
 def update_firestore(collection_name, df):
     try:
